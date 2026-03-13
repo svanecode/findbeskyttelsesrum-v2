@@ -12,6 +12,11 @@
 - Are import concerns separated from public shelter records?
 - Are manual overrides modeled independently?
 - Is the UI calm, fast, and mobile-first?
+- If touching `/find`, does it keep `q` and optional `municipality` as the primary URL contract?
+- If touching shelter details, does the page surface source provenance and freshness clearly from public data?
+- If touching municipality pages, does the page work as a standalone landing page and not just a raw shelter list?
+- If touching public reporting, is the write path validated on the server and isolated to `shelter_reports`?
+- If touching `/admin`, is service-role usage server-only and is auth enforced with a real authenticated admin check?
 - Is the change small enough to review easily?
 
 ## Delivery Checklist

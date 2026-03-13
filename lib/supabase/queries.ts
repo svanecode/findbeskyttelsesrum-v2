@@ -1,0 +1,720 @@
+import { cache } from "react";
+
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+type ShelterStatus = "active" | "temporarily_closed" | "under_review";
+type SourceType = "official" | "municipality" | "manual" | "other";
+type ShelterReportStatus = "open" | "reviewing" | "resolved" | "rejected";
+
+type MunicipalityRow = {
+  id: string;
+  slug: string;
+  name: string;
+};
+
+type MunicipalityRelation = MunicipalityRow | MunicipalityRow[] | null;
+
+type SourceRow = {
+  id: string;
+  source_name: string;
+  source_type: SourceType;
+  source_url: string | null;
+  source_reference?: string | null;
+  last_verified_at: string | null;
+  imported_at?: string | null;
+  notes?: string | null;
+};
+
+type ShelterRow = {
+  id: string;
+  slug: string;
+  name: string;
+  address_line1: string;
+  postal_code: string;
+  city: string;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  summary: string;
+  source_summary: string;
+  capacity: number;
+  status: ShelterStatus;
+  accessibility_notes: string | null;
+  municipality_id?: string;
+  municipalities?: MunicipalityRelation;
+  shelter_sources?: SourceRow[] | null;
+};
+
+type FeaturedShelterRow = Pick<
+  ShelterRow,
+  | "id"
+  | "slug"
+  | "name"
+  | "address_line1"
+  | "postal_code"
+  | "city"
+  | "summary"
+  | "capacity"
+  | "status"
+  | "municipalities"
+  | "shelter_sources"
+>;
+
+type ShelterDetailRow = Pick<
+  ShelterRow,
+  | "id"
+  | "slug"
+  | "name"
+  | "address_line1"
+  | "postal_code"
+  | "city"
+  | "latitude"
+  | "longitude"
+  | "summary"
+  | "source_summary"
+  | "capacity"
+  | "status"
+  | "accessibility_notes"
+  | "municipalities"
+>;
+
+type MunicipalityShelterRow = Pick<
+  ShelterRow,
+  | "id"
+  | "slug"
+  | "name"
+  | "address_line1"
+  | "postal_code"
+  | "city"
+  | "summary"
+  | "capacity"
+  | "status"
+>;
+
+export type FeaturedShelter = {
+  id: string;
+  slug: string;
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  summary: string;
+  capacity: number;
+  statusLabel: string;
+  primarySourceName: string | null;
+  lastVerifiedLabel: string | null;
+  municipality: MunicipalityRow;
+};
+
+export type ShelterDetail = {
+  id: string;
+  slug: string;
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  latitude: number | null;
+  longitude: number | null;
+  summary: string;
+  sourceSummary: string;
+  capacity: number;
+  statusLabel: string;
+  primarySourceName: string | null;
+  primarySourceTypeLabel: string | null;
+  primarySourceUrl: string | null;
+  primarySourceReference: string | null;
+  lastVerifiedLabel: string | null;
+  lastImportedLabel: string | null;
+  accessibilityNotes: string | null;
+  dataQualityScore: number | null;
+  qualityState: string;
+  publicNotes: string | null;
+  municipality: MunicipalityRow;
+  sources: Array<{
+    id: string;
+    sourceName: string;
+    sourceTypeLabel: string;
+    sourceUrl: string | null;
+    sourceReference: string | null;
+    importedAtLabel: string | null;
+    lastVerifiedLabel: string | null;
+    notes: string | null;
+  }>;
+};
+
+export type MunicipalityDetail = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  shelterCount: number;
+  hasShelters: boolean;
+  shelters: MunicipalityShelterListItem[];
+};
+
+export type MunicipalityShelterListItem = {
+  id: string;
+  slug: string;
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  summary: string;
+  capacity: number;
+  statusLabel: string;
+  primarySourceName: string | null;
+  dataQualityScore: number | null;
+  qualityState: string;
+};
+
+export type SearchShelterResult = {
+  id: string;
+  slug: string;
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  summary: string;
+  capacity: number;
+  statusLabel: string;
+  primarySourceName: string | null;
+  dataQualityScore: number | null;
+  municipality: MunicipalityRow;
+};
+
+export type SearchShelterResultSet = {
+  query: string | null;
+  municipalitySlug: string | null;
+  municipalityName: string | null;
+  isMunicipalityFilterInvalid: boolean;
+  results: SearchShelterResult[];
+};
+
+export type AdminShelterReport = {
+  id: string;
+  reportType: string;
+  message: string;
+  contactEmail: string | null;
+  status: ShelterReportStatus;
+  createdAtLabel: string;
+  shelterName: string | null;
+  shelterSlug: string | null;
+  municipalityName: string | null;
+};
+
+function formatStatus(status: ShelterStatus) {
+  switch (status) {
+    case "active":
+      return "Active";
+    case "temporarily_closed":
+      return "Temporarily closed";
+    case "under_review":
+      return "Under review";
+    default:
+      return status;
+  }
+}
+
+function formatSourceType(sourceType: SourceType) {
+  switch (sourceType) {
+    case "official":
+      return "Official source";
+    case "municipality":
+      return "Municipality source";
+    case "manual":
+      return "Manual source";
+    case "other":
+      return "Other source";
+    default:
+      return sourceType;
+  }
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function mapMunicipality(row: MunicipalityRelation | undefined): MunicipalityRow {
+  const municipality = Array.isArray(row) ? row[0] : row;
+
+  return {
+    id: municipality?.id ?? "unknown",
+    slug: municipality?.slug ?? "unknown",
+    name: municipality?.name ?? "Unknown municipality",
+  };
+}
+
+function parseCoordinate(value: number | string | null | undefined) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getQualityState(source: SourceRow | null) {
+  if (!source) {
+    return "Source context is still limited";
+  }
+
+  if (source.last_verified_at) {
+    return "Has a public verification date";
+  }
+
+  if (source.imported_at) {
+    return "Imported source available";
+  }
+
+  return "Source connected with limited freshness detail";
+}
+
+function normalizeSearchText(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function getSearchTokens(query: string | null) {
+  if (!query) {
+    return [];
+  }
+
+  return normalizeSearchText(query)
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+function getPrimarySource(sources: SourceRow[] | null | undefined) {
+  if (!sources || sources.length === 0) {
+    return null;
+  }
+
+  return [...sources].sort((left, right) => {
+    const leftTime = left.last_verified_at ? new Date(left.last_verified_at).getTime() : 0;
+    const rightTime = right.last_verified_at ? new Date(right.last_verified_at).getTime() : 0;
+
+    return rightTime - leftTime;
+  })[0];
+}
+
+function getSearchableText(row: {
+  name: string;
+  address_line1: string;
+  postal_code: string;
+  city: string;
+  municipalities?: MunicipalityRelation;
+}) {
+  const municipality = mapMunicipality(row.municipalities);
+
+  return normalizeSearchText(
+    [row.name, row.address_line1, row.postal_code, row.city, municipality.name].join(" "),
+  );
+}
+
+function scoreSearchMatch(
+  row: {
+    name: string;
+    address_line1: string;
+    postal_code: string;
+    city: string;
+    municipalities?: MunicipalityRelation;
+  },
+  query: string | null,
+) {
+  if (!query) {
+    return 1;
+  }
+
+  const normalizedQuery = normalizeSearchText(query);
+  const tokens = getSearchTokens(query);
+  const searchableText = getSearchableText(row);
+  const normalizedName = normalizeSearchText(row.name);
+  const normalizedAddress = normalizeSearchText(row.address_line1);
+  const normalizedCity = normalizeSearchText(row.city);
+
+  const matchedTokens = tokens.filter((token) => searchableText.includes(token));
+
+  if (matchedTokens.length === 0 && !searchableText.includes(normalizedQuery)) {
+    return 0;
+  }
+
+  let score = matchedTokens.length * 10;
+
+  if (searchableText.includes(normalizedQuery)) {
+    score += 25;
+  }
+
+  if (normalizedName.startsWith(normalizedQuery)) {
+    score += 20;
+  }
+
+  if (normalizedAddress.startsWith(normalizedQuery)) {
+    score += 14;
+  }
+
+  if (normalizedCity === normalizedQuery) {
+    score += 10;
+  }
+
+  return score;
+}
+
+export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]> {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("shelters")
+    .select(
+      "id, slug, name, address_line1, postal_code, city, summary, capacity, status, municipalities(id, slug, name), shelter_sources(id, source_name, source_type, source_url, last_verified_at)",
+    )
+    .eq("is_featured", true)
+    .order("featured_rank", { ascending: true })
+    .limit(limit);
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as FeaturedShelterRow[]).map((row) => {
+    const primarySource = row.shelter_sources?.[0];
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      addressLine1: row.address_line1,
+      postalCode: row.postal_code,
+      city: row.city,
+      summary: row.summary,
+      capacity: row.capacity,
+      statusLabel: formatStatus(row.status),
+      primarySourceName: primarySource?.source_name ?? null,
+      lastVerifiedLabel: formatDate(primarySource?.last_verified_at ?? null),
+      municipality: mapMunicipality(row.municipalities),
+    };
+  });
+}
+
+export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetail | null> => {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const shelterResponse = await supabase
+    .from("shelters")
+    .select(
+      "id, slug, name, address_line1, postal_code, city, latitude, longitude, summary, source_summary, capacity, status, accessibility_notes, municipality_id, municipalities(id, slug, name)",
+    )
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (shelterResponse.error || !shelterResponse.data) {
+    return null;
+  }
+
+  const shelter = shelterResponse.data as ShelterDetailRow;
+
+  const sourcesResponse = await supabase
+    .from("shelter_sources")
+    .select("id, source_name, source_type, source_url, source_reference, last_verified_at, imported_at, notes")
+    .eq("shelter_id", shelter.id)
+    .order("last_verified_at", { ascending: false, nullsFirst: false })
+    .order("imported_at", { ascending: false, nullsFirst: false });
+
+  const sources = (sourcesResponse.data as SourceRow[] | null)?.map((source) => ({
+    id: source.id,
+    sourceName: source.source_name,
+    sourceTypeLabel: formatSourceType(source.source_type),
+    sourceUrl: source.source_url,
+    sourceReference: source.source_reference ?? null,
+    importedAtLabel: formatDate(source.imported_at ?? null),
+    lastVerifiedLabel: formatDate(source.last_verified_at),
+    notes: source.notes ?? null,
+  })) ?? [];
+
+  const primarySource = getPrimarySource(sourcesResponse.data as SourceRow[] | null);
+  const publicNotes = primarySource?.notes ?? null;
+
+  return {
+    id: shelter.id,
+    slug: shelter.slug,
+    name: shelter.name,
+    addressLine1: shelter.address_line1,
+    postalCode: shelter.postal_code,
+    city: shelter.city,
+    latitude: parseCoordinate(shelter.latitude),
+    longitude: parseCoordinate(shelter.longitude),
+    summary: shelter.summary,
+    sourceSummary: shelter.source_summary,
+    capacity: shelter.capacity,
+    statusLabel: formatStatus(shelter.status),
+    primarySourceName: primarySource?.source_name ?? null,
+    primarySourceTypeLabel: primarySource ? formatSourceType(primarySource.source_type) : null,
+    primarySourceUrl: primarySource?.source_url ?? null,
+    primarySourceReference: primarySource?.source_reference ?? null,
+    lastVerifiedLabel: formatDate(primarySource?.last_verified_at ?? null),
+    lastImportedLabel: formatDate(primarySource?.imported_at ?? null),
+    accessibilityNotes: shelter.accessibility_notes,
+    dataQualityScore: null,
+    qualityState: getQualityState(primarySource ?? null),
+    publicNotes,
+    municipality: mapMunicipality(shelter.municipalities),
+    sources,
+  };
+});
+
+export const getMunicipalityBySlug = cache(async (slug: string): Promise<MunicipalityDetail | null> => {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const municipalityResponse = await supabase
+    .from("municipalities")
+    .select("id, slug, name, description")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (municipalityResponse.error || !municipalityResponse.data) {
+    return null;
+  }
+
+  const municipality = municipalityResponse.data as MunicipalityRow & {
+    description: string | null;
+  };
+
+  const sheltersResponse = await supabase
+    .from("shelters")
+    .select(
+      "id, slug, name, address_line1, postal_code, city, summary, capacity, status, shelter_sources(id, source_name, source_type, source_url, source_reference, last_verified_at, imported_at, notes)",
+    )
+    .eq("municipality_id", municipality.id)
+    .order("is_featured", { ascending: false })
+    .order("featured_rank", { ascending: true });
+
+  const shelters =
+    (sheltersResponse.data as Array<MunicipalityShelterRow & { shelter_sources?: SourceRow[] | null }> | null)?.map(
+      (shelter) => {
+        const primarySource = getPrimarySource(shelter.shelter_sources);
+
+        return {
+          id: shelter.id,
+          slug: shelter.slug,
+          name: shelter.name,
+          addressLine1: shelter.address_line1,
+          postalCode: shelter.postal_code,
+          city: shelter.city,
+          summary: shelter.summary,
+          capacity: shelter.capacity,
+          statusLabel: formatStatus(shelter.status),
+          primarySourceName: primarySource?.source_name ?? null,
+          dataQualityScore: null,
+          qualityState: getQualityState(primarySource ?? null),
+        };
+      },
+    ) ?? [];
+
+  return {
+    id: municipality.id,
+    slug: municipality.slug,
+    name: municipality.name,
+    description: municipality.description,
+    shelterCount: shelters.length,
+    hasShelters: shelters.length > 0,
+    shelters,
+  };
+});
+
+export async function searchShelters(input: {
+  query: string | null;
+  municipalitySlug: string | null;
+}): Promise<SearchShelterResultSet> {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return {
+      query: input.query,
+      municipalitySlug: input.municipalitySlug,
+      municipalityName: null,
+      isMunicipalityFilterInvalid: false,
+      results: [],
+    };
+  }
+
+  let municipalityId: string | null = null;
+  let municipalityName: string | null = null;
+  let isMunicipalityFilterInvalid = false;
+
+  if (input.municipalitySlug) {
+    const municipalityResponse = await supabase
+      .from("municipalities")
+      .select("id, slug, name")
+      .eq("slug", input.municipalitySlug)
+      .maybeSingle();
+
+    if (municipalityResponse.data) {
+      municipalityId = municipalityResponse.data.id;
+      municipalityName = municipalityResponse.data.name;
+    } else {
+      isMunicipalityFilterInvalid = true;
+    }
+  }
+
+  if (isMunicipalityFilterInvalid) {
+    return {
+      query: input.query,
+      municipalitySlug: input.municipalitySlug,
+      municipalityName: null,
+      isMunicipalityFilterInvalid,
+      results: [],
+    };
+  }
+
+  const tokens = getSearchTokens(input.query);
+  const primaryToken = tokens[0] ?? input.query;
+
+  let queryBuilder = supabase
+    .from("shelters")
+    .select(
+      "id, slug, name, address_line1, postal_code, city, summary, capacity, status, municipalities(id, slug, name), shelter_sources(id, source_name, source_type, source_url, last_verified_at)",
+    )
+    .limit(50);
+
+  if (municipalityId) {
+    queryBuilder = queryBuilder.eq("municipality_id", municipalityId);
+  }
+
+  if (primaryToken) {
+    const escaped = primaryToken.replace(/[%_,]/g, "");
+    queryBuilder = queryBuilder.or(
+      `name.ilike.%${escaped}%,address_line1.ilike.%${escaped}%,city.ilike.%${escaped}%,postal_code.ilike.%${escaped}%`,
+    );
+  }
+
+  const { data, error } = await queryBuilder;
+
+  if (error || !data) {
+    return {
+      query: input.query,
+      municipalitySlug: input.municipalitySlug,
+      municipalityName,
+      isMunicipalityFilterInvalid,
+      results: [],
+    };
+  }
+
+  const results = (data as Array<
+    Pick<
+      ShelterRow,
+      | "id"
+      | "slug"
+      | "name"
+      | "address_line1"
+      | "postal_code"
+      | "city"
+      | "summary"
+      | "capacity"
+      | "status"
+      | "municipalities"
+      | "shelter_sources"
+    >
+  >)
+    .map((row) => ({
+      row,
+      matchScore: scoreSearchMatch(row, input.query),
+    }))
+    .filter(({ matchScore }) => matchScore > 0 || !input.query)
+    .sort((left, right) => {
+      if (right.matchScore !== left.matchScore) {
+        return right.matchScore - left.matchScore;
+      }
+
+      const leftMunicipality = mapMunicipality(left.row.municipalities).name;
+      const rightMunicipality = mapMunicipality(right.row.municipalities).name;
+
+      return leftMunicipality.localeCompare(rightMunicipality);
+    })
+    .map(({ row }) => {
+      const primarySource = getPrimarySource(row.shelter_sources);
+
+      return {
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        addressLine1: row.address_line1,
+        postalCode: row.postal_code,
+        city: row.city,
+        summary: row.summary,
+        capacity: row.capacity,
+        statusLabel: formatStatus(row.status),
+        primarySourceName: primarySource?.source_name ?? null,
+        dataQualityScore: null,
+        municipality: mapMunicipality(row.municipalities),
+      };
+    });
+
+  return {
+    query: input.query,
+    municipalitySlug: input.municipalitySlug,
+    municipalityName,
+    isMunicipalityFilterInvalid,
+    results,
+  };
+}
+
+export async function getAdminShelterReports(): Promise<AdminShelterReport[]> {
+  try {
+    const supabase = createSupabaseAdminClient();
+
+    const { data, error } = await supabase
+      .from("shelter_reports")
+      .select(
+        "id, report_type, message, contact_email, status, created_at, shelters(name, slug, municipalities(name))",
+      )
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error || !data) {
+      return [];
+    }
+
+    return data.map((report) => {
+      const shelter = Array.isArray(report.shelters) ? report.shelters[0] : report.shelters;
+      const municipality = shelter?.municipalities
+        ? Array.isArray(shelter.municipalities)
+          ? shelter.municipalities[0]
+          : shelter.municipalities
+        : null;
+
+      return {
+        id: report.id,
+        reportType: report.report_type,
+        message: report.message,
+        contactEmail: report.contact_email,
+        status: report.status as ShelterReportStatus,
+        createdAtLabel: formatDate(report.created_at) ?? "Unknown date",
+        shelterName: shelter?.name ?? null,
+        shelterSlug: shelter?.slug ?? null,
+        municipalityName: municipality?.name ?? null,
+      };
+    });
+  } catch {
+    return [];
+  }
+}

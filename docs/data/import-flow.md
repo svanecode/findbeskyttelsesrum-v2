@@ -15,3 +15,5 @@ Track where shelter data came from, when it was imported, and when a manual over
 - Preserve a clear line between imported data and manual decisions.
 - Avoid mutating historical import metadata in place when an audit entry is more appropriate.
 - Keep the public shelter record easy to read from the app without joining raw import payloads.
+- Treat `shelter_reports` as inbound public feedback for later review, not as an immediate mutation path for shelter data.
+- Moderation status changes can be audited without mutating the underlying shelter record directly.
