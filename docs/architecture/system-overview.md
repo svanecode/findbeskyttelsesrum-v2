@@ -23,6 +23,7 @@
 7. Municipality pages load one municipality by slug together with its public shelters and derive landing-page card trust fields from the same public shelter/source tables.
 8. Public issue reports are submitted from shelter detail pages through a server action that validates input and writes only to `shelter_reports` via a controlled server-side client.
 9. `/admin` uses Supabase Auth sessions plus an allowlist of approved admin email addresses, while moderation reads and writes remain server-only.
+10. Manual shelter overrides are stored separately from imported records and applied as effective values on the public shelter detail read path when an active override exists.
 
 ## Current Boundaries
 - No map provider integration yet.

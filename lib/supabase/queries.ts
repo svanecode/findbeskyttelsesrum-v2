@@ -2,6 +2,13 @@ import { cache } from "react";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  formatAddressLine1,
+  formatOverrideStatusLabel,
+  parseAddressLine1,
+  type OverrideStatus,
+  type ShelterOverrideValues,
+} from "@/lib/shelter/overrides";
 
 type ShelterStatus = "active" | "temporarily_closed" | "under_review";
 type SourceType = "official" | "municipality" | "manual" | "other";
@@ -43,6 +50,25 @@ type ShelterRow = {
   municipality_id?: string;
   municipalities?: MunicipalityRelation;
   shelter_sources?: SourceRow[] | null;
+};
+
+type ShelterOverrideRow = {
+  id: string;
+  shelter_id: string;
+  name: string | null;
+  street: string | null;
+  house_number: string | null;
+  postal_code: string | null;
+  city: string | null;
+  capacity: number | null;
+  status: OverrideStatus | null;
+  notes_public: string | null;
+  reason: string;
+  is_active: boolean;
+  created_by: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type FeaturedShelterRow = Pick<
@@ -202,6 +228,39 @@ export type AdminShelterReport = {
   municipalityName: string | null;
 };
 
+export type AdminShelterOverrideContext = {
+  id: string;
+  slug: string;
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+  municipalityName: string;
+  hasActiveOverride: boolean;
+  activeOverrideReason: string | null;
+  importedValues: {
+    name: string;
+    street: string;
+    houseNumber: string;
+    postalCode: string;
+    city: string;
+    capacity: string;
+    status: string;
+    notesPublic: string;
+  };
+  effectiveValues: {
+    name: string;
+    street: string;
+    houseNumber: string;
+    postalCode: string;
+    city: string;
+    capacity: string;
+    status: string;
+    notesPublic: string;
+  };
+  overrideValues: ShelterOverrideValues;
+};
+
 function formatStatus(status: ShelterStatus) {
   switch (status) {
     case "active":
@@ -276,6 +335,10 @@ function getQualityState(source: SourceRow | null) {
   }
 
   return "Source connected with limited freshness detail";
+}
+
+function applyShelterOverride<T>(imported: T, overrideValue: T | null | undefined) {
+  return overrideValue ?? imported;
 }
 
 function normalizeSearchText(value: string) {
@@ -409,13 +472,13 @@ export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]>
 }
 
 export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetail | null> => {
-  const supabase = await createSupabaseServerClient();
+  const publicSupabase = await createSupabaseServerClient();
 
-  if (!supabase) {
+  if (!publicSupabase) {
     return null;
   }
 
-  const shelterResponse = await supabase
+  const shelterResponse = await publicSupabase
     .from("shelters")
     .select(
       "id, slug, name, address_line1, postal_code, city, latitude, longitude, summary, source_summary, capacity, status, accessibility_notes, municipality_id, municipalities(id, slug, name)",
@@ -429,7 +492,7 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
 
   const shelter = shelterResponse.data as ShelterDetailRow;
 
-  const sourcesResponse = await supabase
+  const sourcesResponse = await publicSupabase
     .from("shelter_sources")
     .select("id, source_name, source_type, source_url, source_reference, last_verified_at, imported_at, notes")
     .eq("shelter_id", shelter.id)
@@ -449,20 +512,50 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
 
   const primarySource = getPrimarySource(sourcesResponse.data as SourceRow[] | null);
   const publicNotes = primarySource?.notes ?? null;
+  let activeOverride: ShelterOverrideRow | null = null;
+
+  try {
+    const adminSupabase = createSupabaseAdminClient();
+    const overrideResponse = await adminSupabase
+      .from("shelter_status_overrides")
+      .select(
+        "id, shelter_id, name, street, house_number, postal_code, city, capacity, status, notes_public, reason, is_active, created_by, updated_by, created_at, updated_at",
+      )
+      .eq("shelter_id", shelter.id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    activeOverride = (overrideResponse.data as ShelterOverrideRow | null) ?? null;
+  } catch {
+    activeOverride = null;
+  }
+
+  const importedAddress = parseAddressLine1(shelter.address_line1);
+  const effectiveStreet = applyShelterOverride(importedAddress.street, activeOverride?.street);
+  const effectiveHouseNumber = applyShelterOverride(
+    importedAddress.houseNumber,
+    activeOverride?.house_number,
+  );
+  const effectiveName = applyShelterOverride(shelter.name, activeOverride?.name);
+  const effectivePostalCode = applyShelterOverride(shelter.postal_code, activeOverride?.postal_code);
+  const effectiveCity = applyShelterOverride(shelter.city, activeOverride?.city);
+  const effectiveCapacity = applyShelterOverride(shelter.capacity, activeOverride?.capacity);
+  const effectiveStatus = applyShelterOverride(shelter.status, activeOverride?.status);
+  const effectiveNotesPublic = applyShelterOverride(publicNotes, activeOverride?.notes_public);
 
   return {
     id: shelter.id,
     slug: shelter.slug,
-    name: shelter.name,
-    addressLine1: shelter.address_line1,
-    postalCode: shelter.postal_code,
-    city: shelter.city,
+    name: effectiveName,
+    addressLine1: formatAddressLine1(effectiveStreet, effectiveHouseNumber) || shelter.address_line1,
+    postalCode: effectivePostalCode,
+    city: effectiveCity,
     latitude: parseCoordinate(shelter.latitude),
     longitude: parseCoordinate(shelter.longitude),
     summary: shelter.summary,
     sourceSummary: shelter.source_summary,
-    capacity: shelter.capacity,
-    statusLabel: formatStatus(shelter.status),
+    capacity: effectiveCapacity,
+    statusLabel: formatStatus(effectiveStatus),
     primarySourceName: primarySource?.source_name ?? null,
     primarySourceTypeLabel: primarySource ? formatSourceType(primarySource.source_type) : null,
     primarySourceUrl: primarySource?.source_url ?? null,
@@ -472,7 +565,7 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
     accessibilityNotes: shelter.accessibility_notes,
     dataQualityScore: null,
     qualityState: getQualityState(primarySource ?? null),
-    publicNotes,
+    publicNotes: effectiveNotesPublic,
     municipality: mapMunicipality(shelter.municipalities),
     sources,
   };
@@ -716,5 +809,103 @@ export async function getAdminShelterReports(): Promise<AdminShelterReport[]> {
     });
   } catch {
     return [];
+  }
+}
+
+export async function getAdminShelterOverrideContext(
+  slug: string,
+): Promise<AdminShelterOverrideContext | null> {
+  try {
+    const supabase = createSupabaseAdminClient();
+
+    const shelterResponse = await supabase
+      .from("shelters")
+      .select("id, slug, name, address_line1, postal_code, city, capacity, status, municipalities(name)")
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (shelterResponse.error || !shelterResponse.data) {
+      return null;
+    }
+
+    const shelter = shelterResponse.data as ShelterRow & {
+      municipalities?: { name: string } | { name: string }[] | null;
+    };
+
+    const sourcesResponse = await supabase
+      .from("shelter_sources")
+      .select("id, source_name, source_type, source_url, source_reference, last_verified_at, imported_at, notes")
+      .eq("shelter_id", shelter.id)
+      .order("last_verified_at", { ascending: false, nullsFirst: false })
+      .order("imported_at", { ascending: false, nullsFirst: false });
+
+    const overrideResponse = await supabase
+      .from("shelter_status_overrides")
+      .select(
+        "id, shelter_id, name, street, house_number, postal_code, city, capacity, status, notes_public, reason, is_active, created_by, updated_by, created_at, updated_at",
+      )
+      .eq("shelter_id", shelter.id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    const municipalityRelation = Array.isArray(shelter.municipalities)
+      ? shelter.municipalities[0]
+      : shelter.municipalities;
+    const primarySource = getPrimarySource(sourcesResponse.data as SourceRow[] | null);
+    const importedAddress = parseAddressLine1(shelter.address_line1);
+    const activeOverride = (overrideResponse.data as ShelterOverrideRow | null) ?? null;
+    const importedValues = {
+      name: shelter.name,
+      street: importedAddress.street,
+      houseNumber: importedAddress.houseNumber || "Not separated in import",
+      postalCode: shelter.postal_code,
+      city: shelter.city,
+      capacity: `${shelter.capacity}`,
+      status: formatStatus(shelter.status),
+      notesPublic: primarySource?.notes ?? "No public notes from import",
+    };
+    const effectiveValues = {
+      name: applyShelterOverride(importedValues.name, activeOverride?.name),
+      street: applyShelterOverride(importedValues.street, activeOverride?.street),
+      houseNumber:
+        applyShelterOverride(
+          importedAddress.houseNumber || "Not separated in import",
+          activeOverride?.house_number,
+        ) || "Not separated in import",
+      postalCode: applyShelterOverride(importedValues.postalCode, activeOverride?.postal_code),
+      city: applyShelterOverride(importedValues.city, activeOverride?.city),
+      capacity: `${applyShelterOverride(shelter.capacity, activeOverride?.capacity)}`,
+      status: activeOverride?.status
+        ? formatOverrideStatusLabel(activeOverride.status)
+        : importedValues.status,
+      notesPublic: applyShelterOverride(importedValues.notesPublic, activeOverride?.notes_public),
+    };
+    const overrideValues: ShelterOverrideValues = {
+      name: activeOverride?.name ?? null,
+      street: activeOverride?.street ?? null,
+      houseNumber: activeOverride?.house_number ?? null,
+      postalCode: activeOverride?.postal_code ?? null,
+      city: activeOverride?.city ?? null,
+      capacity: activeOverride?.capacity ?? null,
+      status: activeOverride?.status ?? null,
+      notesPublic: activeOverride?.notes_public ?? null,
+    };
+
+    return {
+      id: shelter.id,
+      slug: shelter.slug,
+      name: shelter.name,
+      addressLine1: shelter.address_line1,
+      postalCode: shelter.postal_code,
+      city: shelter.city,
+      municipalityName: municipalityRelation?.name ?? "Unknown municipality",
+      hasActiveOverride: Boolean(activeOverride),
+      activeOverrideReason: activeOverride?.reason ?? null,
+      importedValues,
+      effectiveValues,
+      overrideValues,
+    };
+  } catch {
+    return null;
   }
 }

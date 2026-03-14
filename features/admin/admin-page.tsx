@@ -118,13 +118,21 @@ function ReportCard({ report }: { report: AdminShelterReport }) {
           <div className="space-y-1">
             <p className="font-medium text-foreground">Related shelter</p>
             {report.shelterSlug ? (
-              <Link
-                className="text-foreground underline underline-offset-4"
-                href={`/beskyttelsesrum/${report.shelterSlug}`}
-                target="_blank"
-              >
-                Open shelter detail
-              </Link>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  className="text-foreground underline underline-offset-4"
+                  href={`/beskyttelsesrum/${report.shelterSlug}`}
+                  target="_blank"
+                >
+                  Open shelter detail
+                </Link>
+                <Link
+                  className="text-foreground underline underline-offset-4"
+                  href={`/admin/shelters/${report.shelterSlug}/override`}
+                >
+                  Open override flow
+                </Link>
+              </div>
             ) : (
               <p>Linked shelter record is incomplete.</p>
             )}

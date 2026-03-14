@@ -17,6 +17,7 @@
 - If touching municipality pages, does the page work as a standalone landing page and not just a raw shelter list?
 - If touching public reporting, is the write path validated on the server and isolated to `shelter_reports`?
 - If touching `/admin`, is service-role usage server-only and is auth enforced with a real authenticated admin check?
+- If touching overrides, is the effective-value precedence explicit and are imported values still traceable?
 - Is the change small enough to review easily?
 
 ## Delivery Checklist
