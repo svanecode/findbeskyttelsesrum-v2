@@ -83,23 +83,16 @@ export function OverrideForm({ shelter }: OverrideFormProps) {
             />
             <FieldError message={state.fieldErrors.capacity} />
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground" htmlFor="street">
-              Street
-            </label>
-            <Input defaultValue={shelter.overrideValues.street ?? ""} id="street" name="street" />
-            <FieldError message={state.fieldErrors.street} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground" htmlFor="houseNumber">
-              House number
+          <div className="space-y-2 sm:col-span-2">
+            <label className="text-sm font-medium text-foreground" htmlFor="addressLine1">
+              Address line 1
             </label>
             <Input
-              defaultValue={shelter.overrideValues.houseNumber ?? ""}
-              id="houseNumber"
-              name="houseNumber"
+              defaultValue={shelter.overrideValues.addressLine1 ?? ""}
+              id="addressLine1"
+              name="addressLine1"
             />
-            <FieldError message={state.fieldErrors.houseNumber} />
+            <FieldError message={state.fieldErrors.addressLine1} />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground" htmlFor="postalCode">
@@ -138,16 +131,28 @@ export function OverrideForm({ shelter }: OverrideFormProps) {
             <FieldError message={state.fieldErrors.status} />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm font-medium text-foreground" htmlFor="notesPublic">
-              Public notes
+            <label className="text-sm font-medium text-foreground" htmlFor="accessibilityNotes">
+              Accessibility notes
             </label>
             <Textarea
-              defaultValue={shelter.overrideValues.notesPublic ?? ""}
-              id="notesPublic"
-              name="notesPublic"
-              placeholder="Visible note for the public shelter page."
+              defaultValue={shelter.overrideValues.accessibilityNotes ?? ""}
+              id="accessibilityNotes"
+              name="accessibilityNotes"
+              placeholder="Visible accessibility guidance for the public shelter page."
             />
-            <FieldError message={state.fieldErrors.notesPublic} />
+            <FieldError message={state.fieldErrors.accessibilityNotes} />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <label className="text-sm font-medium text-foreground" htmlFor="summary">
+              Summary
+            </label>
+            <Textarea
+              defaultValue={shelter.overrideValues.summary ?? ""}
+              id="summary"
+              name="summary"
+              placeholder="Short public summary for the shelter detail page."
+            />
+            <FieldError message={state.fieldErrors.summary} />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <label className="text-sm font-medium text-foreground" htmlFor="reason">

@@ -18,6 +18,7 @@
 - If touching public reporting, is the write path validated on the server and isolated to `shelter_reports`?
 - If touching `/admin`, is service-role usage server-only and is auth enforced with a real authenticated admin check?
 - If touching overrides, is the effective-value precedence explicit and are imported values still traceable?
+- If touching overrides, does the change stay within the documented field scope (`name`, `address_line1`, `postal_code`, `city`, `capacity`, `status`, `accessibility_notes`, `summary`) unless a migration explicitly expands it?
 - Is the change small enough to review easily?
 
 ## Delivery Checklist

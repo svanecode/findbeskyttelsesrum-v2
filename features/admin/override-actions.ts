@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { formatAddressLine1, hasAnyOverrideValue, type ShelterOverrideValues } from "@/lib/shelter/overrides";
+import { hasAnyOverrideValue, type ShelterOverrideValues } from "@/lib/shelter/overrides";
 
 import { requireAuthorizedAdmin } from "./lib/auth";
 import {
@@ -30,26 +30,26 @@ function getOverrideValues(formData: FormData): ShelterOverrideValues {
 
   return {
     name: normalizeOptionalString(getString(formData, "name")),
-    street: normalizeOptionalString(getString(formData, "street")),
-    houseNumber: normalizeOptionalString(getString(formData, "houseNumber")),
+    addressLine1: normalizeOptionalString(getString(formData, "addressLine1")),
     postalCode: normalizeOptionalString(getString(formData, "postalCode")),
     city: normalizeOptionalString(getString(formData, "city")),
     capacity: capacityValue ? Number(capacityValue) : null,
     status: normalizeOptionalString(getString(formData, "status")) as ShelterOverrideValues["status"],
-    notesPublic: normalizeOptionalString(getString(formData, "notesPublic")),
+    accessibilityNotes: normalizeOptionalString(getString(formData, "accessibilityNotes")),
+    summary: normalizeOptionalString(getString(formData, "summary")),
   };
 }
 
 function mapPayload(values: ShelterOverrideValues) {
   return {
     name: values.name,
-    street: values.street,
-    house_number: values.houseNumber,
+    address_line1: values.addressLine1,
     postal_code: values.postalCode,
     city: values.city,
     capacity: values.capacity,
     status: values.status,
-    notes_public: values.notesPublic,
+    accessibility_notes: values.accessibilityNotes,
+    summary: values.summary,
   };
 }
 
@@ -138,7 +138,9 @@ export async function saveShelterOverride(
           .from("shelter_status_overrides")
           .update(payload)
           .eq("id", existingResponse.data.id)
-      : await supabase.from("shelter_status_overrides").insert(payload);
+          .select("id")
+          .single()
+      : await supabase.from("shelter_status_overrides").insert(payload).select("id").single();
 
     if (overrideResponse.error) {
       return {
@@ -153,13 +155,12 @@ export async function saveShelterOverride(
       actor_type: "admin",
       actor_identifier: admin.email,
       entity_type: "shelter_override",
-      entity_id: existingResponse.data?.id ?? null,
+      entity_id: overrideResponse.data?.id ?? existingResponse.data?.id ?? null,
       event_type: existingResponse.data ? "override_updated" : "override_created",
       payload: {
         shelter_id: shelterId,
         shelter_slug: shelterSlug,
         reason,
-        effective_address_line1: formatAddressLine1(values.street, values.houseNumber),
         values,
       },
     });

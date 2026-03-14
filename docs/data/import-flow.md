@@ -1,7 +1,7 @@
 # Import Flow
 
 ## Purpose
-Track where shelter data came from, when it was imported, and when a manual override changed the public status.
+Track where shelter data came from, when it was imported, and when a manual override changed the effective public shelter view.
 
 ## First-Pass Flow
 1. Create an `import_runs` row for each ingestion execution.

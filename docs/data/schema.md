@@ -42,4 +42,4 @@
 - Current public report types are `incorrect_address`, `unavailable`, `incorrect_capacity`, `duplicate_record`, and `other`.
 - Current moderation statuses are `open`, `reviewing`, `resolved`, and `rejected`.
 - Admin moderation access is authorization-driven at the application layer and currently uses an allowlist of Supabase Auth email addresses.
-- First-version override fields are `name`, `street`, `house_number`, `postal_code`, `city`, `capacity`, `status`, and `notes_public`.
+- First-version override fields are `name`, `address_line1`, `postal_code`, `city`, `capacity`, `status`, `accessibility_notes`, and `summary`.

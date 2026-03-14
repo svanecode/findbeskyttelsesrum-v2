@@ -1,17 +1,15 @@
-import { isValidModerationStatus } from "./moderation";
-
 export type OverrideFormState = {
   status: "idle" | "success" | "error";
   fieldErrors: {
     reason?: string;
     name?: string;
-    street?: string;
-    houseNumber?: string;
+    addressLine1?: string;
     postalCode?: string;
     city?: string;
     capacity?: string;
     status?: string;
-    notesPublic?: string;
+    accessibilityNotes?: string;
+    summary?: string;
     form?: string;
   };
   message?: string;
@@ -49,5 +47,5 @@ export function validateOverrideStatus(value: string | null) {
     return true;
   }
 
-  return isValidModerationStatus(value) || value === "active" || value === "temporarily_closed" || value === "under_review";
+  return value === "active" || value === "temporarily_closed" || value === "under_review";
 }

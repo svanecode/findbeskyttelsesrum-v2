@@ -138,14 +138,9 @@ export function AdminShelterOverridePage({
               <CardContent className="space-y-1">
                 <ValueRow label="Name" effectiveValue={shelter.effectiveValues.name} importedValue={shelter.importedValues.name} />
                 <ValueRow
-                  label="Street"
-                  effectiveValue={shelter.effectiveValues.street}
-                  importedValue={shelter.importedValues.street}
-                />
-                <ValueRow
-                  label="House number"
-                  effectiveValue={shelter.effectiveValues.houseNumber}
-                  importedValue={shelter.importedValues.houseNumber}
+                  label="Address line 1"
+                  effectiveValue={shelter.effectiveValues.addressLine1}
+                  importedValue={shelter.importedValues.addressLine1}
                 />
                 <ValueRow
                   label="Postal code"
@@ -164,9 +159,14 @@ export function AdminShelterOverridePage({
                   importedValue={shelter.importedValues.status}
                 />
                 <ValueRow
-                  label="Public notes"
-                  effectiveValue={shelter.effectiveValues.notesPublic}
-                  importedValue={shelter.importedValues.notesPublic}
+                  label="Accessibility notes"
+                  effectiveValue={shelter.effectiveValues.accessibilityNotes}
+                  importedValue={shelter.importedValues.accessibilityNotes}
+                />
+                <ValueRow
+                  label="Summary"
+                  effectiveValue={shelter.effectiveValues.summary}
+                  importedValue={shelter.importedValues.summary}
                 />
               </CardContent>
             </Card>
