@@ -1,8 +1,7 @@
 import { cache } from "react";
 
 import { calculateDistanceKm } from "@/lib/location/distance";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAppV2AdminClient, createAppV2ServerClient } from "@/lib/supabase/app-v2";
 import { formatOverrideStatusLabel, type OverrideStatus, type ShelterOverrideValues } from "@/lib/shelter/overrides";
 
 type ShelterStatus = "active" | "temporarily_closed" | "under_review";
@@ -332,6 +331,12 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function normalizeText(value: string | null | undefined) {
+  const trimmed = value?.trim();
+
+  return trimmed ? trimmed : null;
+}
+
 function mapMunicipality(row: MunicipalityRelation | undefined): MunicipalityRow {
   const municipality = Array.isArray(row) ? row[0] : row;
 
@@ -366,6 +371,36 @@ function getQualityState(source: SourceRow | null) {
   }
 
   return "Source connected with limited freshness detail";
+}
+
+function getShelterSummary(
+  value: string | null | undefined,
+  municipality: MunicipalityRow,
+) {
+  const summary = normalizeText(value);
+
+  if (summary) {
+    return summary;
+  }
+
+  return `Public shelter record in ${municipality.name}. More official shelter details are still being confirmed.`;
+}
+
+function getSourceSummary(
+  value: string | null | undefined,
+  source: SourceRow | null,
+) {
+  const summary = normalizeText(value);
+
+  if (summary) {
+    return summary;
+  }
+
+  if (source?.source_name) {
+    return `This public record currently relies on ${source.source_name} as its primary source connection. Freshness and field completeness can still improve over time.`;
+  }
+
+  return "This public record is available, but its primary source trail is still limited. Freshness and field completeness can still improve over time.";
 }
 
 function applyShelterOverride<T>(imported: T, overrideValue: T | null | undefined) {
@@ -493,7 +528,7 @@ async function getActiveShelterOverrides(
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createAppV2AdminClient();
     const { data, error } = await supabase
       .from("shelter_overrides")
       .select(
@@ -515,7 +550,7 @@ async function getActiveShelterOverrides(
 }
 
 export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createAppV2ServerClient();
 
   if (!supabase) {
     return [];
@@ -540,7 +575,8 @@ export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]>
 
   return rows.map((row) => {
     const effectiveRow = mapShelterOverride(row, overrides.get(row.id) ?? null);
-    const primarySource = row.shelter_sources?.[0];
+    const primarySource = getPrimarySource(row.shelter_sources);
+    const municipality = mapMunicipality(row.municipalities);
 
     return {
       id: effectiveRow.id,
@@ -549,18 +585,18 @@ export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]>
       addressLine1: effectiveRow.address_line1,
       postalCode: effectiveRow.postal_code,
       city: effectiveRow.city,
-      summary: effectiveRow.summary,
+      summary: getShelterSummary(effectiveRow.summary, municipality),
       capacity: effectiveRow.capacity,
       statusLabel: formatStatus(effectiveRow.status),
       primarySourceName: primarySource?.source_name ?? null,
       lastVerifiedLabel: formatDate(primarySource?.last_verified_at ?? null),
-      municipality: mapMunicipality(row.municipalities),
+      municipality,
     };
   });
 }
 
 export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetail | null> => {
-  const publicSupabase = await createSupabaseServerClient();
+  const publicSupabase = await createAppV2ServerClient();
 
   if (!publicSupabase) {
     return null;
@@ -604,7 +640,7 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
   let activeOverride: ShelterOverrideRow | null = null;
 
   try {
-    const adminSupabase = createSupabaseAdminClient();
+    const adminSupabase = createAppV2AdminClient();
     const overrideResponse = await adminSupabase
       .from("shelter_overrides")
       .select(
@@ -633,6 +669,7 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
     activeOverride?.accessibility_notes,
   );
   const effectiveSummary = applyShelterOverride(shelter.summary, activeOverride?.summary);
+  const municipality = mapMunicipality(shelter.municipalities);
 
   return {
     id: shelter.id,
@@ -643,8 +680,8 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
     city: effectiveCity,
     latitude: parseCoordinate(shelter.latitude),
     longitude: parseCoordinate(shelter.longitude),
-    summary: effectiveSummary,
-    sourceSummary: shelter.source_summary,
+    summary: getShelterSummary(effectiveSummary, municipality),
+    sourceSummary: getSourceSummary(shelter.source_summary, primarySource ?? null),
     capacity: effectiveCapacity,
     statusLabel: formatStatus(effectiveStatus),
     primarySourceName: primarySource?.source_name ?? null,
@@ -657,13 +694,13 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
     dataQualityScore: null,
     qualityState: getQualityState(primarySource ?? null),
     publicNotes,
-    municipality: mapMunicipality(shelter.municipalities),
+    municipality,
     sources,
   };
 });
 
 export const getMunicipalityBySlug = cache(async (slug: string): Promise<MunicipalityDetail | null> => {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createAppV2ServerClient();
 
   if (!supabase) {
     return null;
@@ -700,6 +737,11 @@ export const getMunicipalityBySlug = cache(async (slug: string): Promise<Municip
   const shelters = shelterRows.map((shelter) => {
     const effectiveShelter = mapShelterOverride(shelter, overrides.get(shelter.id) ?? null);
     const primarySource = getPrimarySource(shelter.shelter_sources);
+    const municipalityRow = {
+      id: municipality.id,
+      slug: municipality.slug,
+      name: municipality.name,
+    };
 
     return {
       id: shelter.id,
@@ -708,7 +750,7 @@ export const getMunicipalityBySlug = cache(async (slug: string): Promise<Municip
       addressLine1: effectiveShelter.address_line1,
       postalCode: effectiveShelter.postal_code,
       city: effectiveShelter.city,
-      summary: effectiveShelter.summary,
+      summary: getShelterSummary(effectiveShelter.summary, municipalityRow),
       capacity: effectiveShelter.capacity,
       statusLabel: formatStatus(effectiveShelter.status),
       primarySourceName: primarySource?.source_name ?? null,
@@ -734,7 +776,7 @@ export async function searchShelters(input: {
   latitude: number | null;
   longitude: number | null;
 }): Promise<SearchShelterResultSet> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createAppV2ServerClient();
   const hasLocationSearch = input.latitude !== null && input.longitude !== null;
   const searchMode: SearchMode = hasLocationSearch
     ? input.query
@@ -881,6 +923,7 @@ export async function searchShelters(input: {
 
   const results = rankedResults.slice(0, 50).map(({ row, distanceKm }) => {
     const primarySource = getPrimarySource(row.shelter_sources);
+    const municipality = mapMunicipality(row.municipalities);
 
     return {
       id: row.id,
@@ -891,13 +934,13 @@ export async function searchShelters(input: {
       city: row.city,
       latitude: parseCoordinate(row.latitude),
       longitude: parseCoordinate(row.longitude),
-      summary: row.summary,
+      summary: getShelterSummary(row.summary, municipality),
       capacity: row.capacity,
       statusLabel: formatStatus(row.status),
       primarySourceName: primarySource?.source_name ?? null,
       dataQualityScore: null,
       distanceKm,
-      municipality: mapMunicipality(row.municipalities),
+      municipality,
     };
   });
 
@@ -922,7 +965,7 @@ export async function searchShelters(input: {
 
 export async function getAdminShelterReports(): Promise<AdminShelterReport[]> {
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createAppV2AdminClient();
 
     const { data, error } = await supabase
       .from("shelter_reports")
@@ -965,7 +1008,7 @@ export async function getAdminShelterOverrideContext(
   slug: string,
 ): Promise<AdminShelterOverrideContext | null> {
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createAppV2AdminClient();
 
     const shelterResponse = await supabase
       .from("shelters")
@@ -1004,7 +1047,7 @@ export async function getAdminShelterOverrideContext(
       capacity: `${shelter.capacity}`,
       status: formatStatus(shelter.status),
       accessibilityNotes: shelter.accessibility_notes ?? "No accessibility notes from import",
-      summary: shelter.summary,
+      summary: normalizeText(shelter.summary) ?? "No imported public summary yet",
     };
     const effectiveValues = {
       name: applyShelterOverride(importedValues.name, activeOverride?.name),

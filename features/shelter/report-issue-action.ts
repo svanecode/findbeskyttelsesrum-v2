@@ -1,6 +1,6 @@
 "use server";
 
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
 import {
   initialReportIssueState,
@@ -58,7 +58,7 @@ export async function submitShelterReport(
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createAppV2AdminClient();
 
     const shelterResponse = await supabase
       .from("shelters")

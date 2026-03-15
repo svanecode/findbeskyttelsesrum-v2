@@ -32,6 +32,9 @@
 - If touching importer work, does the real-source path fail clearly on auth, timeout, network, and source-shape errors?
 - If touching importer work, does the real-source path expose skip counts and warning signals instead of silently dropping incomplete source rows?
 - If touching importer work, are any currently deferred official fields documented explicitly instead of being silently guessed?
+- If touching the database model, does new v2 work land in `app_v2` without modifying legacy `public` objects unless the task explicitly requires it?
+- If touching Supabase queries or writes, is schema targeting explicit for `app_v2` and are any required API-schema exposure steps documented?
+- If touching public `app_v2` reads, do sparse imported records still render honest fallback copy instead of blank summaries or trust sections?
 - Is the change small enough to review easily?
 
 ## Delivery Checklist

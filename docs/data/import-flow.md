@@ -3,19 +3,25 @@
 ## Purpose
 Track how official baseline data enters the system, how admin corrections stay separate, and how the public app reads effective values.
 
+## Schema Boundary
+- Legacy `public` tables remain untouched and are not the target for v2 migration work.
+- The new v2 importer and app data model now live in `app_v2`.
+
 ## Current Flow
-1. Create an `import_runs` row for each official ingestion execution.
-2. Upsert municipality baseline data.
-3. Upsert importer-owned shelter baseline fields into `shelters`.
-4. Upsert official provenance and freshness rows in `shelter_sources`.
-5. Keep manual operational changes in `shelter_overrides`.
+1. Create an `app_v2.import_runs` row for each official ingestion execution.
+2. Upsert municipality baseline data into `app_v2.municipalities`.
+3. Upsert importer-owned shelter baseline fields into `app_v2.shelters`.
+4. Upsert official provenance and freshness rows in `app_v2.shelter_sources`.
+5. Keep manual operational changes in `app_v2.shelter_overrides`.
 6. Compute effective public values at read time from override-first precedence.
-7. Record notable operational actions in `audit_events`.
+7. Record notable operational actions in `app_v2.audit_events`.
 
 ## Current Skeleton Implementation
 - The first importer skeleton now lives in `lib/importer`.
 - Local development runs use the fixture adapter in `lib/importer/adapters/fixture-adapter.ts`.
 - The first real official adapter now lives in `lib/importer/adapters/datafordeler-official-adapter.ts`.
+- Importer writes now target `app_v2`, not legacy `public`.
+- The app now assumes `app_v2` may start sparse or partially populated and uses fallback public copy when imported summaries or source summaries are still blank.
 - CLI entry points:
   - `npm run importer:fixture -- <snapshot>`
   - `npm run importer:datafordeler`
@@ -41,6 +47,8 @@ Track how official baseline data enters the system, how admin corrections stay s
 - Preserve a clear line between imported data and manual decisions.
 - Avoid mutating historical import metadata in place when an audit entry is more appropriate.
 - Keep the public shelter record easy to read from the app without joining raw import payloads.
+- Do not modify the legacy `public` schema as part of v2 importer work.
+- Shared app reads should move toward `app_v2` explicitly instead of relying on implicit default-schema behavior.
 - Treat `shelter_reports` as inbound operational feedback only, not as the primary product data path and not as an immediate mutation path for shelter data.
 - Moderation status changes can be audited without mutating the underlying shelter record directly.
 - Manual overrides should update only the separate override record; imported shelter values remain traceable and unchanged.

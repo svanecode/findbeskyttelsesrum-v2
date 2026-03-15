@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const cards = [
   {
     title: "Public shelter records",
-    body: "Shelter pages read from the public shelters table. It is the stable read model used by the app.",
+    body: "Shelter pages are being retargeted to the dedicated app_v2 shelter tables, separate from the legacy public schema.",
   },
   {
     title: "Source provenance",

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 import { hasAnyOverrideValue, type ShelterOverrideValues } from "@/lib/shelter/overrides";
 
 import { requireAuthorizedAdmin } from "./lib/auth";
@@ -114,7 +114,7 @@ export async function saveShelterOverride(
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createAppV2AdminClient();
 
     const existingResponse = await supabase
       .from("shelter_overrides")
@@ -212,7 +212,7 @@ export async function clearShelterOverride(
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createAppV2AdminClient();
 
     const existingResponse = await supabase
       .from("shelter_overrides")

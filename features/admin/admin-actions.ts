@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { requireAuthorizedAdmin } from "./lib/auth";
@@ -107,7 +107,7 @@ export async function updateShelterReportStatus(
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createAppV2AdminClient();
 
     const reportResponse = await supabase
       .from("shelter_reports")

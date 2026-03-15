@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
 import type { OfficialSourceAdapter } from "@/lib/importer/source-adapter";
 import type { ImportedShelterRecord, ImporterRunSummary } from "@/lib/importer/types";
@@ -114,7 +114,7 @@ function getWarningExamples(warnings: Array<{ code: string; message: string; ref
 }
 
 async function createImportRun(sourceName: string, sourceUrl: string | null) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createAppV2AdminClient();
   const { data, error } = await supabase
     .from("import_runs")
     .insert({
@@ -141,7 +141,7 @@ async function updateImportRun(
     errorSummary?: string;
   },
 ) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createAppV2AdminClient();
 
   await supabase
     .from("import_runs")
@@ -162,7 +162,7 @@ async function insertAuditEvent(input: {
   eventType: string;
   payload: Record<string, unknown>;
 }) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createAppV2AdminClient();
 
   await supabase.from("audit_events").insert({
     actor_type: "system",
@@ -175,7 +175,7 @@ async function insertAuditEvent(input: {
 }
 
 async function upsertMunicipality(record: ImportedShelterRecord): Promise<MunicipalityUpsertResult> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createAppV2AdminClient();
   const { data, error } = await supabase
     .from("municipalities")
     .upsert(
@@ -199,7 +199,7 @@ async function upsertMunicipality(record: ImportedShelterRecord): Promise<Munici
 }
 
 async function findShelterByCanonicalIdentity(record: ImportedShelterRecord): Promise<ShelterRow | null> {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createAppV2AdminClient();
   const canonicalResponse = await supabase
     .from("shelters")
     .select(
@@ -241,7 +241,7 @@ async function upsertShelterSource(input: {
   importRunId: string;
   record: ImportedShelterRecord;
 }) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createAppV2AdminClient();
   const existingResponse = await supabase
     .from("shelter_sources")
     .select("id, shelter_id, source_name, source_reference")
@@ -278,7 +278,7 @@ async function upsertShelterBaseline(input: {
   actorIdentifier: string;
   counters: ImportCounters;
 }) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createAppV2AdminClient();
   const existing = await findShelterByCanonicalIdentity(input.record);
   const desiredBaseline = {
     slug: input.record.shelter.slug,
@@ -366,7 +366,7 @@ async function markMissingShelters(input: {
   importTimestamp: string;
   actorIdentifier: string;
 }) {
-  const supabase = createSupabaseAdminClient();
+  const supabase = createAppV2AdminClient();
   const { data, error } = await supabase
     .from("shelters")
     .select("id, slug, canonical_source_reference, import_state")

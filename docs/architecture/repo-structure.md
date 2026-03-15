@@ -13,12 +13,15 @@
 ## Conventions
 - Keep route files thin and focused on composition.
 - Place data access in `lib/supabase`.
+- Treat the live Supabase `public` schema as legacy for this project; new v2 database work now lives in `app_v2`.
+- Use explicit `app_v2` schema-targeted Supabase helpers for v2 reads and writes instead of relying on the default schema.
 - Keep official importer code in `lib/importer` and keep it separate from route modules and public query code.
 - Keep source clients for importer-only integrations close to the importer in `lib/importer/clients`; current real-source work uses a small Datafordeler GraphQL client there.
 - Keep browser geolocation handling local to the feature that needs it and pass coordinates through URL params into server-rendered search routes.
 - Keep provider integrations isolated in small `lib/*` modules; current address geocoding lives in `lib/geocoding/dawa.ts` and feeds the existing `/find` coordinate contract.
 - Keep local importer execution in a small script entry point under `scripts/importer`; do not couple importer runs to route handlers.
 - Keep importer execution env-var driven and non-interactive so the same command shape can later run inside GitHub Actions.
+- Add new v2 database objects through migrations under a dedicated schema instead of modifying legacy `public` objects in place.
 - Keep the `/find` map isolated to a dedicated client component tree fed by the existing search result set; do not introduce a separate map-only fetch path in the first version.
 - Place feature-specific view models and UI under the relevant `features/*` directory.
 - Keep public form handling close to the relevant feature and route writes through explicit server actions.

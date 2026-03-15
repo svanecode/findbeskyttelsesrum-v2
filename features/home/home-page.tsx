@@ -96,8 +96,8 @@ export function HomePage({ featuredShelters }: HomePageProps) {
         <PageShell className="space-y-8">
           <SectionHeading
             eyebrow="Featured shelters"
-            title="Temporary records from Supabase seed data"
-            description="The homepage reads a small featured list from the database so the baseline proves the full content path end to end."
+            title="Featured public shelter records"
+            description="The homepage reads a small featured list from app_v2 so the public runtime can surface trusted records when imported data is ready."
           />
           <div className="grid gap-4">
             {featuredShelters.length > 0 ? (
@@ -145,8 +145,8 @@ export function HomePage({ featuredShelters }: HomePageProps) {
                 <CardHeader>
                   <CardTitle>No featured shelters available yet</CardTitle>
                   <CardDescription>
-                    Add the Supabase environment variables, run the migration and seed, and the
-                    homepage will load the featured records from the database.
+                    Featured records will appear here once app_v2 contains imported shelters and at
+                    least one record is marked for homepage display.
                   </CardDescription>
                 </CardHeader>
               </Card>
