@@ -103,6 +103,16 @@ function assertAdapterSourceConsistency(records: ImportedShelterRecord[], adapte
   }
 }
 
+function getWarningExamples(warnings: Array<{ code: string; message: string; reference?: string }>) {
+  return warnings.slice(0, 5).map((warning) => {
+    if (warning.reference) {
+      return `${warning.code}: ${warning.message} (${warning.reference})`;
+    }
+
+    return `${warning.code}: ${warning.message}`;
+  });
+}
+
 async function createImportRun(sourceName: string, sourceUrl: string | null) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -409,15 +419,45 @@ async function markMissingShelters(input: {
 export async function runOfficialImporter(input: {
   adapter: OfficialSourceAdapter;
   snapshotName: string;
+  dryRun?: boolean;
 }): Promise<ImporterRunSummary> {
-  const importRun = await createImportRun(input.adapter.sourceName, input.adapter.sourceUrl);
   const actorIdentifier = `importer:${input.adapter.sourceName}`;
+
+  if (input.dryRun) {
+    const fetchResult = await input.adapter.fetchRecords({
+      name: input.snapshotName,
+    });
+    const records = fetchResult.records;
+
+    assertUniqueCanonicalRecords(records);
+    assertAdapterSourceConsistency(records, input.adapter);
+
+    return {
+      sourceName: input.adapter.sourceName,
+      snapshotName: input.snapshotName,
+      dryRun: true,
+      recordsSeen: records.length,
+      inserted: 0,
+      updated: 0,
+      unchanged: 0,
+      restored: 0,
+      missing: 0,
+      recordsUpserted: 0,
+      importRunId: null,
+      warningsCount: fetchResult.warnings.length,
+      warningExamples: getWarningExamples(fetchResult.warnings),
+      fetchStats: fetchResult.stats,
+    };
+  }
+
+  const importRun = await createImportRun(input.adapter.sourceName, input.adapter.sourceUrl);
   const importTimestamp = new Date().toISOString();
 
   try {
-    const records = await input.adapter.fetchRecords({
+    const fetchResult = await input.adapter.fetchRecords({
       name: input.snapshotName,
     });
+    const records = fetchResult.records;
 
     assertUniqueCanonicalRecords(records);
     assertAdapterSourceConsistency(records, input.adapter);
@@ -487,6 +527,7 @@ export async function runOfficialImporter(input: {
     return {
       sourceName: input.adapter.sourceName,
       snapshotName: input.snapshotName,
+      dryRun: false,
       recordsSeen: records.length,
       inserted: counters.inserted,
       updated: counters.updated,
@@ -495,6 +536,9 @@ export async function runOfficialImporter(input: {
       missing: counters.missing,
       recordsUpserted,
       importRunId: importRun.id,
+      warningsCount: fetchResult.warnings.length,
+      warningExamples: getWarningExamples(fetchResult.warnings),
+      fetchStats: fetchResult.stats,
     };
   } catch (error) {
     const errorSummary = error instanceof Error ? error.message : "Unknown importer error.";

@@ -1,4 +1,4 @@
-import type { ImportedShelterRecord } from "@/lib/importer/types";
+import type { ImporterFetchResult } from "@/lib/importer/types";
 
 export type ImporterSnapshot = {
   name: string;
@@ -7,5 +7,5 @@ export type ImporterSnapshot = {
 export interface OfficialSourceAdapter {
   readonly sourceName: string;
   readonly sourceUrl: string | null;
-  fetchRecords(snapshot: ImporterSnapshot): Promise<ImportedShelterRecord[]>;
+  fetchRecords(snapshot: ImporterSnapshot): Promise<ImporterFetchResult>;
 }

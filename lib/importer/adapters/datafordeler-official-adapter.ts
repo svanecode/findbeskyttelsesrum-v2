@@ -1,13 +1,18 @@
 import proj4 from "proj4";
 
 import type { OfficialSourceAdapter } from "@/lib/importer/source-adapter";
-import type { ImportedShelterRecord } from "@/lib/importer/types";
+import type {
+  ImportedShelterRecord,
+  ImporterFetchResult,
+  ImporterWarning,
+} from "@/lib/importer/types";
 
 import { DatafordelerGraphqlClient } from "@/lib/importer/clients/datafordeler";
 
 type BbrBuildingNode = {
   id_lokalId: string;
   kommunekode: string;
+  status: string | null;
   husnummer: string | null;
   byg007Bygningsnummer: string | null;
   byg021BygningensAnvendelse: string | null;
@@ -16,6 +21,7 @@ type BbrBuildingNode = {
 
 type DarHouseNumberNode = {
   id_lokalId: string;
+  status: string | null;
   navngivenVej?: {
     navn?: string | null;
   } | null;
@@ -55,10 +61,20 @@ type DatafordelerAdapterConfig = {
   bbrGraphqlUrl: string;
   darGraphqlUrl: string;
   municipalityCodes: string[];
-  bbrUsageCodes: string[];
+  municipalityOverrides: Record<string, MunicipalityMetadata>;
+  shelterUsageCodes: Set<string>;
+  acceptedBbrStatuses: Set<string>;
+  acceptedDarStatuses: Set<string>;
   pageSize: number;
   requestTimeoutMs: number;
   bitemporalTimestamp: string;
+};
+
+type AdapterCounters = {
+  skippedRecords: number;
+  missingAddressCount: number;
+  missingMunicipalityCount: number;
+  missingCoordinatesCount: number;
 };
 
 const CANONICAL_SOURCE_NAME = "datafordeler-bbr-dar";
@@ -71,7 +87,7 @@ proj4.defs(
   "+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type=crs",
 );
 
-const municipalityByCode: Record<string, MunicipalityMetadata> = {
+const defaultMunicipalityOverrides: Record<string, MunicipalityMetadata> = {
   "0101": {
     slug: "kobenhavn",
     name: "Copenhagen",
@@ -101,7 +117,6 @@ const fetchBbrBuildingsQuery = `
       where: {
         kommunekode: { in: $municipalityCodes }
         byg021BygningensAnvendelse: { in: $usageCodes }
-        status: { eq: "6" }
       }
     ) {
       pageInfo {
@@ -112,6 +127,7 @@ const fetchBbrBuildingsQuery = `
         node {
           id_lokalId
           kommunekode
+          status
           husnummer
           byg007Bygningsnummer
           byg021BygningensAnvendelse
@@ -135,7 +151,6 @@ const fetchDarHouseNumbersQuery = `
       virkningstid: $virkningstid
       where: {
         id_lokalId: { in: $houseNumberIds }
-        status: { eq: "gældende" }
       }
     ) {
       pageInfo {
@@ -145,6 +160,7 @@ const fetchDarHouseNumbersQuery = `
       edges {
         node {
           id_lokalId
+          status
           husnummertekst
           navngivenVej {
             navn
@@ -192,6 +208,36 @@ function getCsvEnv(name: string) {
     .filter(Boolean);
 }
 
+function getOptionalCsvEnv(name: string) {
+  const raw = process.env[name]?.trim();
+
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function getDatafordelerShelterUsageCodes() {
+  const next = process.env.DATAFORDELER_BBR_SHELTER_USAGE_CODES?.trim();
+
+  if (next) {
+    return next
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  return getCsvEnv("DATAFORDELER_BBR_USAGE_CODES");
+}
+
+function getOptionalStatusSet(name: string, fallback: string[]) {
+  return new Set(getOptionalCsvEnv(name).length > 0 ? getOptionalCsvEnv(name) : fallback);
+}
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -200,6 +246,38 @@ function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
+}
+
+function parseMunicipalityOverrides(raw: string | undefined) {
+  if (!raw?.trim()) {
+    return {};
+  }
+
+  const entries = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return Object.fromEntries(
+    entries.map((entry) => {
+      const [code, slug, name, regionName] = entry.split(":").map((part) => part.trim());
+
+      if (!code || !slug || !name) {
+        throw new Error(
+          "DATAFORDELER_MUNICIPALITY_METADATA must use code:slug:name:region format for each entry.",
+        );
+      }
+
+      return [
+        code,
+        {
+          slug,
+          name,
+          regionName: regionName || null,
+        } satisfies MunicipalityMetadata,
+      ];
+    }),
+  ) as Record<string, MunicipalityMetadata>;
 }
 
 function parseBbrPoint(point: string | null) {
@@ -238,20 +316,6 @@ function parseBbrPoint(point: string | null) {
   };
 }
 
-function getMunicipalityMetadata(code: string): MunicipalityMetadata {
-  const known = municipalityByCode[code];
-
-  if (known) {
-    return known;
-  }
-
-  return {
-    slug: `kommune-${code}`,
-    name: `Municipality ${code}`,
-    regionName: null,
-  };
-}
-
 function buildShelterSlug(input: {
   municipalitySlug: string;
   addressLine1: string;
@@ -268,7 +332,7 @@ function buildShelterName(addressLine1: string) {
 }
 
 function buildSummary() {
-  return "Imported from Datafordeler BBR and DAR. Shelter-specific capacity, accessibility, and readiness details are still being mapped.";
+  return "Imported from Datafordeler BBR and DAR. Shelter-specific capacity, accessibility, and readiness details are still being confirmed.";
 }
 
 function getConfig(): DatafordelerAdapterConfig {
@@ -279,7 +343,13 @@ function getConfig(): DatafordelerAdapterConfig {
     darGraphqlUrl:
       process.env.DATAFORDELER_DAR_GRAPHQL_URL?.trim() || "https://graphql.datafordeler.dk/DAR/v1",
     municipalityCodes: getCsvEnv("DATAFORDELER_MUNICIPALITY_CODES"),
-    bbrUsageCodes: getCsvEnv("DATAFORDELER_BBR_USAGE_CODES"),
+    municipalityOverrides: {
+      ...defaultMunicipalityOverrides,
+      ...parseMunicipalityOverrides(process.env.DATAFORDELER_MUNICIPALITY_METADATA),
+    },
+    shelterUsageCodes: new Set(getDatafordelerShelterUsageCodes()),
+    acceptedBbrStatuses: getOptionalStatusSet("DATAFORDELER_BBR_ACTIVE_STATUSES", ["6"]),
+    acceptedDarStatuses: getOptionalStatusSet("DATAFORDELER_DAR_ACTIVE_STATUSES", ["3"]),
     pageSize: getOptionalNumber("DATAFORDELER_PAGE_SIZE", 200),
     requestTimeoutMs: getOptionalNumber("DATAFORDELER_REQUEST_TIMEOUT_MS", 30000),
     bitemporalTimestamp: process.env.DATAFORDELER_BITEMPORAL_TIMESTAMP?.trim() || new Date().toISOString(),
@@ -307,29 +377,67 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     });
   }
 
-  async fetchRecords(snapshot: { name: string }): Promise<ImportedShelterRecord[]> {
+  async fetchRecords(snapshot: { name: string }): Promise<ImporterFetchResult> {
     void snapshot;
 
     console.log(
       `[importer] datafordeler: starting BBR fetch for municipalities ${this.config.municipalityCodes.join(", ")}`,
     );
 
-    const buildings = await this.fetchAllBbrBuildings();
+    const warnings: ImporterWarning[] = [];
+    const counters: AdapterCounters = {
+      skippedRecords: 0,
+      missingAddressCount: 0,
+      missingMunicipalityCount: 0,
+      missingCoordinatesCount: 0,
+    };
+
+    const buildings = await this.fetchAllBbrBuildings(warnings);
     console.log(`[importer] datafordeler: fetched ${buildings.length} BBR building records`);
 
-    const darHouseNumbers = await this.fetchDarHouseNumbers(buildings);
+    const eligibleBuildings = buildings.filter((building) => this.isEligibleBuilding(building, warnings, counters));
+    console.log(`[importer] datafordeler: ${eligibleBuildings.length} BBR records passed eligibility checks`);
+
+    const darHouseNumbers = await this.fetchDarHouseNumbers(eligibleBuildings, warnings);
     console.log(`[importer] datafordeler: fetched ${darHouseNumbers.size} DAR house-number records`);
 
-    const records = buildings
-      .map((building) => this.normalizeRecord(building, darHouseNumbers.get(building.husnummer ?? "")))
-      .filter((record): record is ImportedShelterRecord => record !== null);
+    const records: ImportedShelterRecord[] = [];
 
-    console.log(`[importer] datafordeler: normalized ${records.length} shelter records`);
+    for (const building of eligibleBuildings) {
+      const record = this.normalizeRecord(
+        building,
+        darHouseNumbers.get(building.husnummer ?? ""),
+        warnings,
+        counters,
+      );
 
-    return records;
+      if (!record) {
+        counters.skippedRecords += 1;
+        continue;
+      }
+
+      records.push(record);
+    }
+
+    console.log(
+      `[importer] datafordeler: normalized ${records.length} shelter records, skipped ${counters.skippedRecords}`,
+    );
+
+    return {
+      records,
+      warnings,
+      stats: {
+        fetchedRecords: buildings.length,
+        normalizedRecords: records.length,
+        skippedRecords: counters.skippedRecords,
+        missingAddressCount: counters.missingAddressCount,
+        missingMunicipalityCount: counters.missingMunicipalityCount,
+        missingCoordinatesCount: counters.missingCoordinatesCount,
+      },
+    };
   }
 
-  private async fetchAllBbrBuildings() {
+  private async fetchAllBbrBuildings(warnings: ImporterWarning[]) {
     const nodes: BbrBuildingNode[] = [];
     let after: string | null = null;
     let page = 1;
@@ -337,23 +445,36 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     while (true) {
       console.log(`[importer] datafordeler: fetching BBR page ${page}`);
 
-      const payload: BbrBuildingsResponse = await this.bbrClient.query<
-        BbrBuildingsResponse,
-        Record<string, unknown>
-      >({
-        operationName: "FetchBbrBuildings",
-        query: fetchBbrBuildingsQuery,
-        variables: {
-          first: this.config.pageSize,
-          after,
-          municipalityCodes: this.config.municipalityCodes,
-          usageCodes: this.config.bbrUsageCodes,
-          registreringstid: this.config.bitemporalTimestamp,
-          virkningstid: this.config.bitemporalTimestamp,
-        },
-      });
+      let payload: BbrBuildingsResponse;
+
+      try {
+        payload = await this.bbrClient.query<BbrBuildingsResponse, Record<string, unknown>>({
+          operationName: "FetchBbrBuildings",
+          query: fetchBbrBuildingsQuery,
+          variables: {
+            first: this.config.pageSize,
+            after,
+            municipalityCodes: this.config.municipalityCodes,
+            usageCodes: [...this.config.shelterUsageCodes],
+            registreringstid: this.config.bitemporalTimestamp,
+            virkningstid: this.config.bitemporalTimestamp,
+          },
+        });
+      } catch (error) {
+        throw new Error(
+          `BBR fetch failed on page ${page}: ${error instanceof Error ? error.message : "Unknown error."}`,
+        );
+      }
 
       nodes.push(...payload.BBR_Bygning.edges.map((edge) => edge.node));
+
+      if (payload.BBR_Bygning.edges.length === 0) {
+        warnings.push({
+          level: "warning",
+          code: "bbr_empty_page",
+          message: `BBR returned an empty page ${page}.`,
+        });
+      }
 
       if (!payload.BBR_Bygning.pageInfo.hasNextPage || !payload.BBR_Bygning.pageInfo.endCursor) {
         break;
@@ -366,7 +487,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     return nodes;
   }
 
-  private async fetchDarHouseNumbers(buildings: BbrBuildingNode[]) {
+  private async fetchDarHouseNumbers(buildings: BbrBuildingNode[], warnings: ImporterWarning[]) {
     const houseNumberIds = [...new Set(buildings.map((building) => building.husnummer).filter(Boolean))] as string[];
 
     if (houseNumberIds.length === 0) {
@@ -386,46 +507,149 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         `[importer] datafordeler: fetching DAR house-number batch ${batchIndex + 1}/${batches.length}`,
       );
 
-      const payload: DarHouseNumbersResponse = await this.darClient.query<
-        DarHouseNumbersResponse,
-        Record<string, unknown>
-      >({
-        operationName: "FetchDarHouseNumbers",
-        query: fetchDarHouseNumbersQuery,
-        variables: {
-          first: batch.length,
-          houseNumberIds: batch,
-          registreringstid: this.config.bitemporalTimestamp,
-          virkningstid: this.config.bitemporalTimestamp,
-        },
-      });
+      let payload: DarHouseNumbersResponse;
+
+      try {
+        payload = await this.darClient.query<DarHouseNumbersResponse, Record<string, unknown>>({
+          operationName: "FetchDarHouseNumbers",
+          query: fetchDarHouseNumbersQuery,
+          variables: {
+            first: batch.length,
+            houseNumberIds: batch,
+            registreringstid: this.config.bitemporalTimestamp,
+            virkningstid: this.config.bitemporalTimestamp,
+          },
+        });
+      } catch (error) {
+        throw new Error(
+          `DAR fetch failed on batch ${batchIndex + 1}: ${error instanceof Error ? error.message : "Unknown error."}`,
+        );
+      }
 
       for (const edge of payload.DAR_Husnummer.edges) {
         map.set(edge.node.id_lokalId, edge.node);
       }
     }
 
+    const missingIds = houseNumberIds.filter((id) => !map.has(id));
+
+    if (missingIds.length > 0) {
+      warnings.push({
+        level: "warning",
+        code: "dar_missing_house_numbers",
+        message: `DAR did not return ${missingIds.length} referenced house-number rows.`,
+      });
+    }
+
     return map;
+  }
+
+  private isEligibleBuilding(
+    building: BbrBuildingNode,
+    warnings: ImporterWarning[],
+    counters: AdapterCounters,
+  ) {
+    if (!building.status || !this.config.acceptedBbrStatuses.has(building.status)) {
+      warnings.push({
+        level: "warning",
+        code: "bbr_ineligible_status",
+        message: `Skipped BBR building due to non-active status ${building.status ?? "unknown"}.`,
+        reference: building.id_lokalId,
+      });
+      counters.skippedRecords += 1;
+      return false;
+    }
+
+    if (!building.byg021BygningensAnvendelse || !this.config.shelterUsageCodes.has(building.byg021BygningensAnvendelse)) {
+      warnings.push({
+        level: "warning",
+        code: "bbr_ineligible_usage",
+        message: `Skipped BBR building due to usage code ${building.byg021BygningensAnvendelse ?? "unknown"}.`,
+        reference: building.id_lokalId,
+      });
+      counters.skippedRecords += 1;
+      return false;
+    }
+
+    if (!building.husnummer) {
+      warnings.push({
+        level: "warning",
+        code: "bbr_missing_house_number",
+        message: "Skipped BBR building because no DAR house-number reference was present.",
+        reference: building.id_lokalId,
+      });
+      counters.missingAddressCount += 1;
+      counters.skippedRecords += 1;
+      return false;
+    }
+
+    return true;
   }
 
   private normalizeRecord(
     building: BbrBuildingNode,
     houseNumber: DarHouseNumberNode | undefined,
+    warnings: ImporterWarning[],
+    counters: AdapterCounters,
   ): ImportedShelterRecord | null {
-    if (!building.husnummer || !houseNumber?.navngivenVej?.navn || !houseNumber.husnummertekst) {
+    const municipality = this.getMunicipalityMetadata(building.kommunekode, warnings);
+
+    if (!municipality) {
+      counters.missingMunicipalityCount += 1;
       return null;
     }
 
-    const municipality = getMunicipalityMetadata(building.kommunekode);
-    const addressLine1 = `${houseNumber.navngivenVej.navn} ${houseNumber.husnummertekst}`.trim();
+    if (!houseNumber) {
+      warnings.push({
+        level: "warning",
+        code: "dar_house_number_not_found",
+        message: "Skipped building because the referenced DAR house-number row was not returned.",
+        reference: building.id_lokalId,
+      });
+      counters.missingAddressCount += 1;
+      return null;
+    }
+
+    if (!houseNumber.status || !this.config.acceptedDarStatuses.has(houseNumber.status)) {
+      warnings.push({
+        level: "warning",
+        code: "dar_ineligible_status",
+        message: `Skipped building because DAR house-number status ${houseNumber.status ?? "unknown"} is not active.`,
+        reference: building.id_lokalId,
+      });
+      counters.missingAddressCount += 1;
+      return null;
+    }
+
+    const roadName = houseNumber.navngivenVej?.navn?.trim() ?? "";
+    const houseNumberText = houseNumber.husnummertekst?.trim() ?? "";
     const postalCode = houseNumber.postnummer?.nr?.trim() ?? "";
     const city = houseNumber.postnummer?.navn?.trim() ?? "";
 
-    if (!postalCode || !city) {
+    if (!roadName || !houseNumberText || !postalCode || !city) {
+      warnings.push({
+        level: "warning",
+        code: "dar_incomplete_address",
+        message: "Skipped building because DAR address data was incomplete.",
+        reference: building.id_lokalId,
+      });
+      counters.missingAddressCount += 1;
       return null;
     }
 
+    const addressLine1 = `${roadName} ${houseNumberText}`.trim();
     const coordinates = parseBbrPoint(building.byg404Koordinat);
+
+    if (coordinates.latitude === null || coordinates.longitude === null) {
+      warnings.push({
+        level: "warning",
+        code: "bbr_missing_coordinates",
+        message: "BBR building did not expose parseable coordinates. The record will still be imported.",
+        reference: building.id_lokalId,
+      });
+      counters.missingCoordinatesCount += 1;
+    }
+
     const canonicalSourceReference = building.id_lokalId;
 
     return {
@@ -460,6 +684,27 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       lifecycle: {
         importState: "active",
       },
-    } satisfies ImportedShelterRecord;
+    };
+  }
+
+  private getMunicipalityMetadata(code: string, warnings: ImporterWarning[]) {
+    const known = this.config.municipalityOverrides[code];
+
+    if (known) {
+      return known;
+    }
+
+    warnings.push({
+      level: "warning",
+      code: "municipality_metadata_fallback",
+      message: `No municipality metadata override was configured for municipality code ${code}. Using a generated fallback value.`,
+      reference: code,
+    });
+
+    return {
+      slug: `kommune-${code}`,
+      name: `Municipality ${code}`,
+      regionName: null,
+    } satisfies MunicipalityMetadata;
   }
 }

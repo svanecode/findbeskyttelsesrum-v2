@@ -29,6 +29,8 @@
 - If touching importer work, does the adapter emit the normalized importer contract in `lib/importer/types.ts` instead of leaking source-specific shapes into the write path?
 - If touching importer work, does local verification still work through `npm run importer:fixture -- <snapshot>`?
 - If touching importer work, does real-source execution still work through env vars and a CLI path suitable for later GitHub Actions use?
+- If touching importer work, does the real-source path fail clearly on auth, timeout, network, and source-shape errors?
+- If touching importer work, does the real-source path expose skip counts and warning signals instead of silently dropping incomplete source rows?
 - If touching importer work, are any currently deferred official fields documented explicitly instead of being silently guessed?
 - Is the change small enough to review easily?
 

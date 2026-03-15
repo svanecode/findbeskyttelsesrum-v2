@@ -62,10 +62,17 @@ Current normalization behavior:
 - canonical identity:
   - `canonical_source_name = datafordeler-bbr-dar`
   - `canonical_source_reference = BBR_Bygning.id_lokalId`
+- eligibility filter:
+  - municipality allowlist from env
+  - BBR usage-code allowlist from env
+  - BBR active-status allowlist, defaulting to `6`
+  - DAR active-status allowlist, defaulting to `3`
+  - explicit skip when no DAR house-number reference or no usable DAR address exists
 - municipality:
   - driven by BBR `kommunekode`
-  - current repo includes an explicit bundled mapping for Copenhagen and Frederiksberg
-  - unknown codes currently fall back to `kommune-<code>` / `Municipality <code>`
+  - env can provide explicit `code:slug:name:region` metadata overrides
+  - repo keeps a small bundled default for current seeded municipalities
+  - unknown codes still fall back, but now emit warnings
 - address:
   - built from DAR road name, house-number text, postal code, and postal district
 - coordinates:
@@ -76,6 +83,17 @@ Current normalization behavior:
   - `status = under_review`
   - `accessibility_notes = null`
   - `summary` is a narrow importer-owned compatibility summary
+
+What is now considered validated:
+- canonical identity and lifecycle handling work with a real source adapter shape
+- BBR and DAR are fetched separately and normalized through one explicit adapter
+- incomplete DAR data no longer fails silently; skipped records are counted and warned
+- municipality fallback is explicit and warning-backed instead of being silently invented
+
+What is still provisional:
+- the exact BBR shelter-eligibility usage-code set still needs final product/source confirmation
+- municipality metadata should eventually be fully sourced instead of relying on local overrides/fallbacks
+- official capacity and readiness semantics are still deferred
 
 Deferred for later source work:
 - shelter-specific official capacity mapping
@@ -95,12 +113,14 @@ Run the real Datafordeler adapter with:
 
 ```bash
 npm run importer:datafordeler
+npm run importer:datafordeler -- --dry-run
 ```
 
 The Datafordeler path is designed for non-interactive execution:
 - all configuration is env-var driven
 - console output is line-oriented and useful for CI logs
 - missing env vars and network/auth failures fail the process with a non-zero exit code
+- dry-run fetches and normalizes live data without writing to Supabase
 
 Expected behavior:
 - `baseline`

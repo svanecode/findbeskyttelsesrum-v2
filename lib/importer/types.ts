@@ -42,9 +42,34 @@ export type ImportedShelterRecord = {
   };
 };
 
+export type ImporterWarningLevel = "warning" | "error";
+
+export type ImporterWarning = {
+  level: ImporterWarningLevel;
+  code: string;
+  message: string;
+  reference?: string;
+};
+
+export type ImporterFetchStats = {
+  fetchedRecords: number;
+  normalizedRecords: number;
+  skippedRecords: number;
+  missingAddressCount: number;
+  missingMunicipalityCount: number;
+  missingCoordinatesCount: number;
+};
+
+export type ImporterFetchResult = {
+  records: ImportedShelterRecord[];
+  warnings: ImporterWarning[];
+  stats: ImporterFetchStats;
+};
+
 export type ImporterRunSummary = {
   sourceName: string;
   snapshotName: string;
+  dryRun: boolean;
   recordsSeen: number;
   inserted: number;
   updated: number;
@@ -52,5 +77,8 @@ export type ImporterRunSummary = {
   restored: number;
   missing: number;
   recordsUpserted: number;
-  importRunId: string;
+  importRunId: string | null;
+  warningsCount: number;
+  warningExamples: string[];
+  fetchStats: ImporterFetchStats;
 };

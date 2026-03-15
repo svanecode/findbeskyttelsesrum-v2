@@ -53,24 +53,36 @@ export class DatafordelerGraphqlClient {
       });
 
       if (!response.ok) {
-        throw new Error(`Datafordeler request failed with ${response.status} ${response.statusText}.`);
+        throw new Error(
+          `Datafordeler request for ${input.operationName} failed with ${response.status} ${response.statusText}.`,
+        );
       }
 
-      const payload = (await response.json()) as GraphqlResponse<TData>;
+      let payload: GraphqlResponse<TData>;
+
+      try {
+        payload = (await response.json()) as GraphqlResponse<TData>;
+      } catch {
+        throw new Error(`Datafordeler response for ${input.operationName} was not valid JSON.`);
+      }
 
       if (payload.errors && payload.errors.length > 0) {
         const summary = payload.errors.map((error) => error.message ?? "Unknown GraphQL error").join("; ");
-        throw new Error(`Datafordeler GraphQL error: ${summary}`);
+        throw new Error(`Datafordeler GraphQL error in ${input.operationName}: ${summary}`);
       }
 
       if (!payload.data) {
-        throw new Error("Datafordeler GraphQL response did not include data.");
+        throw new Error(`Datafordeler GraphQL response for ${input.operationName} did not include data.`);
       }
 
       return payload.data;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        throw new Error(`Datafordeler request timed out after ${this.requestTimeoutMs}ms.`);
+        throw new Error(`Datafordeler request for ${input.operationName} timed out after ${this.requestTimeoutMs}ms.`);
+      }
+
+      if (error instanceof TypeError) {
+        throw new Error(`Datafordeler network error in ${input.operationName}: ${error.message}`);
       }
 
       throw error;

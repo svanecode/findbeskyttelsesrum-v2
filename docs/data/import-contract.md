@@ -23,6 +23,7 @@ Define the exact contract the future official-data gatherer must write into Supa
   - a fixture-backed adapter
   - a real Datafordeler-backed adapter using a narrow BBR + DAR subset
   - the importer service that writes the current schema
+  - a dry-run path for live-source validation without database writes
 - The current repo does not yet provide:
   - background scheduling
   - full official field coverage

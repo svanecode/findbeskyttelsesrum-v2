@@ -27,7 +27,7 @@
 11. Manual shelter overrides are stored separately from imported records and applied as effective values on the public shelter detail, municipality, and search read paths when an active override exists.
 12. Imported shelter lifecycle is modeled on `shelters` through `import_state`, `last_seen_at`, `last_imported_at`, and canonical official source identity fields.
 13. The first importer skeleton now lives in `lib/importer`, includes both a fixture adapter and a narrow real Datafordeler BBR + DAR adapter, and writes only through server-side Supabase admin access.
-14. The importer CLI is env-var driven and suitable for later non-interactive GitHub Actions execution, but no workflow has been added yet.
+14. The importer CLI is env-var driven, emits concise operational logs, supports dry-run validation, and is suitable for later non-interactive GitHub Actions execution, but no workflow has been added yet.
 15. The next official-data gatherer iteration is expected to extend that importer skeleton while following the import and field-ownership specs in `docs/data/import-model.md`, `docs/data/field-ownership.md`, and `docs/data/import-contract.md`.
 
 ## Current Boundaries

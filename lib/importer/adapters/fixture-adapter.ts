@@ -1,12 +1,12 @@
 import { fixtureSnapshotNames, fixtureSnapshots } from "@/lib/importer/fixtures/shelter-fixtures";
 import type { OfficialSourceAdapter } from "@/lib/importer/source-adapter";
-import type { ImportedShelterRecord } from "@/lib/importer/types";
+import type { ImporterFetchResult } from "@/lib/importer/types";
 
 export class FixtureOfficialSourceAdapter implements OfficialSourceAdapter {
   readonly sourceName = "fixture-official-register";
   readonly sourceUrl = "https://example.com/official-fixture-register";
 
-  async fetchRecords(snapshot: { name: string }): Promise<ImportedShelterRecord[]> {
+  async fetchRecords(snapshot: { name: string }): Promise<ImporterFetchResult> {
     const records = fixtureSnapshots[snapshot.name];
 
     if (!records) {
@@ -15,6 +15,17 @@ export class FixtureOfficialSourceAdapter implements OfficialSourceAdapter {
       );
     }
 
-    return records;
+    return {
+      records,
+      warnings: [],
+      stats: {
+        fetchedRecords: records.length,
+        normalizedRecords: records.length,
+        skippedRecords: 0,
+        missingAddressCount: 0,
+        missingMunicipalityCount: 0,
+        missingCoordinatesCount: 0,
+      },
+    };
   }
 }

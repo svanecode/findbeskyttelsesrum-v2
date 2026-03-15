@@ -19,6 +19,7 @@ Track how official baseline data enters the system, how admin corrections stay s
 - CLI entry points:
   - `npm run importer:fixture -- <snapshot>`
   - `npm run importer:datafordeler`
+  - `npm run importer:datafordeler -- --dry-run`
 - The skeleton currently proves:
   - canonical source identity matching
   - importer-owned field upserts
@@ -26,6 +27,7 @@ Track how official baseline data enters the system, how admin corrections stay s
   - import run logging
   - narrow audit event creation
   - env-var-driven non-interactive execution for later GitHub Actions use
+  - dry-run validation of live-source fetch and normalization without Supabase writes
 
 ## Required Future Flow
 1. Match by canonical official source identity first.
