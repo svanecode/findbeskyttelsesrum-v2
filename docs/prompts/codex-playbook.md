@@ -21,7 +21,11 @@
 - If touching public reporting, is the write path validated on the server and isolated to `shelter_reports`?
 - If touching `/admin`, is service-role usage server-only and is auth enforced with a real authenticated admin check?
 - If touching overrides, is the effective-value precedence explicit and are imported values still traceable?
+- If touching overrides, does the change use `shelter_overrides` and avoid recreating the old `shelter_status_overrides` naming?
 - If touching overrides, does the change stay within the documented field scope (`name`, `address_line1`, `postal_code`, `city`, `capacity`, `status`, `accessibility_notes`, `summary`) unless a migration explicitly expands it?
+- If touching importer work, does it follow the field ownership and import contract docs instead of inferring ownership from current table usage?
+- If touching importer work, does it treat `import_state`, `last_seen_at`, `last_imported_at`, and canonical source identity as importer-owned shelter lifecycle fields?
+- If touching importer work, does it avoid overwriting admin enrichment, override rows, and operational audit history?
 - Is the change small enough to review easily?
 
 ## Delivery Checklist

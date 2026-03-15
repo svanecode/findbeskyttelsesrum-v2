@@ -42,6 +42,11 @@ type ShelterRow = {
   capacity: number;
   status: ShelterStatus;
   accessibility_notes: string | null;
+  import_state?: "active" | "missing_from_source" | "suppressed";
+  last_seen_at?: string | null;
+  last_imported_at?: string | null;
+  canonical_source_name?: string | null;
+  canonical_source_reference?: string | null;
   municipality_id?: string;
   municipalities?: MunicipalityRelation;
   shelter_sources?: SourceRow[] | null;
@@ -223,6 +228,8 @@ export type SearchShelterResult = {
   municipality: MunicipalityRow;
 };
 
+const publicShelterImportState = "active";
+
 type SearchMode = "text" | "location" | "combined";
 
 export type SearchShelterResultSet = {
@@ -365,7 +372,17 @@ function applyShelterOverride<T>(imported: T, overrideValue: T | null | undefine
   return overrideValue ?? imported;
 }
 
-function mapSearchShelterOverride(row: SearchShelterRow, overrideRow: ShelterOverrideRow | null) {
+function mapShelterOverride<
+  T extends {
+    name: string;
+    address_line1: string;
+    postal_code: string;
+    city: string;
+    summary: string;
+    capacity: number;
+    status: ShelterStatus;
+  },
+>(row: T, overrideRow: ShelterOverrideRow | null): T {
   return {
     ...row,
     name: applyShelterOverride(row.name, overrideRow?.name),
@@ -478,7 +495,7 @@ async function getActiveShelterOverrides(
   try {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
-      .from("shelter_status_overrides")
+      .from("shelter_overrides")
       .select(
         "id, shelter_id, name, address_line1, postal_code, city, capacity, status, accessibility_notes, summary, reason, is_active, created_by, updated_by, created_at, updated_at",
       )
@@ -509,6 +526,7 @@ export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]>
     .select(
       "id, slug, name, address_line1, postal_code, city, summary, capacity, status, municipalities(id, slug, name), shelter_sources(id, source_name, source_type, source_url, last_verified_at)",
     )
+    .eq("import_state", publicShelterImportState)
     .eq("is_featured", true)
     .order("featured_rank", { ascending: true })
     .limit(limit);
@@ -517,19 +535,23 @@ export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]>
     return [];
   }
 
-  return (data as FeaturedShelterRow[]).map((row) => {
+  const rows = data as FeaturedShelterRow[];
+  const overrides = await getActiveShelterOverrides(rows.map((row) => row.id));
+
+  return rows.map((row) => {
+    const effectiveRow = mapShelterOverride(row, overrides.get(row.id) ?? null);
     const primarySource = row.shelter_sources?.[0];
 
     return {
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      addressLine1: row.address_line1,
-      postalCode: row.postal_code,
-      city: row.city,
-      summary: row.summary,
-      capacity: row.capacity,
-      statusLabel: formatStatus(row.status),
+      id: effectiveRow.id,
+      slug: effectiveRow.slug,
+      name: effectiveRow.name,
+      addressLine1: effectiveRow.address_line1,
+      postalCode: effectiveRow.postal_code,
+      city: effectiveRow.city,
+      summary: effectiveRow.summary,
+      capacity: effectiveRow.capacity,
+      statusLabel: formatStatus(effectiveRow.status),
       primarySourceName: primarySource?.source_name ?? null,
       lastVerifiedLabel: formatDate(primarySource?.last_verified_at ?? null),
       municipality: mapMunicipality(row.municipalities),
@@ -549,6 +571,7 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
     .select(
       "id, slug, name, address_line1, postal_code, city, latitude, longitude, summary, source_summary, capacity, status, accessibility_notes, municipality_id, municipalities(id, slug, name)",
     )
+    .eq("import_state", publicShelterImportState)
     .eq("slug", slug)
     .maybeSingle();
 
@@ -583,7 +606,7 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
   try {
     const adminSupabase = createSupabaseAdminClient();
     const overrideResponse = await adminSupabase
-      .from("shelter_status_overrides")
+      .from("shelter_overrides")
       .select(
         "id, shelter_id, name, address_line1, postal_code, city, capacity, status, accessibility_notes, summary, reason, is_active, created_by, updated_by, created_at, updated_at",
       )
@@ -665,31 +688,34 @@ export const getMunicipalityBySlug = cache(async (slug: string): Promise<Municip
     .select(
       "id, slug, name, address_line1, postal_code, city, summary, capacity, status, shelter_sources(id, source_name, source_type, source_url, source_reference, last_verified_at, imported_at, notes)",
     )
+    .eq("import_state", publicShelterImportState)
     .eq("municipality_id", municipality.id)
     .order("is_featured", { ascending: false })
     .order("featured_rank", { ascending: true });
 
-  const shelters =
-    (sheltersResponse.data as Array<MunicipalityShelterRow & { shelter_sources?: SourceRow[] | null }> | null)?.map(
-      (shelter) => {
-        const primarySource = getPrimarySource(shelter.shelter_sources);
+  const shelterRows =
+    (sheltersResponse.data as Array<MunicipalityShelterRow & { shelter_sources?: SourceRow[] | null }> | null) ??
+    [];
+  const overrides = await getActiveShelterOverrides(shelterRows.map((shelter) => shelter.id));
+  const shelters = shelterRows.map((shelter) => {
+    const effectiveShelter = mapShelterOverride(shelter, overrides.get(shelter.id) ?? null);
+    const primarySource = getPrimarySource(shelter.shelter_sources);
 
-        return {
-          id: shelter.id,
-          slug: shelter.slug,
-          name: shelter.name,
-          addressLine1: shelter.address_line1,
-          postalCode: shelter.postal_code,
-          city: shelter.city,
-          summary: shelter.summary,
-          capacity: shelter.capacity,
-          statusLabel: formatStatus(shelter.status),
-          primarySourceName: primarySource?.source_name ?? null,
-          dataQualityScore: null,
-          qualityState: getQualityState(primarySource ?? null),
-        };
-      },
-    ) ?? [];
+    return {
+      id: shelter.id,
+      slug: shelter.slug,
+      name: effectiveShelter.name,
+      addressLine1: effectiveShelter.address_line1,
+      postalCode: effectiveShelter.postal_code,
+      city: effectiveShelter.city,
+      summary: effectiveShelter.summary,
+      capacity: effectiveShelter.capacity,
+      statusLabel: formatStatus(effectiveShelter.status),
+      primarySourceName: primarySource?.source_name ?? null,
+      dataQualityScore: null,
+      qualityState: getQualityState(primarySource ?? null),
+    };
+  });
 
   return {
     id: municipality.id,
@@ -778,7 +804,8 @@ export async function searchShelters(input: {
     .from("shelters")
     .select(
       "id, slug, name, address_line1, postal_code, city, latitude, longitude, summary, capacity, status, municipalities(id, slug, name), shelter_sources(id, source_name, source_type, source_url, last_verified_at)",
-    );
+    )
+    .eq("import_state", publicShelterImportState);
 
   if (municipalityId) {
     queryBuilder = queryBuilder.eq("municipality_id", municipalityId);
@@ -814,7 +841,7 @@ export async function searchShelters(input: {
   const overrides = await getActiveShelterOverrides(rows.map((row) => row.id));
   const rankedResults = rows
     .map((row) => {
-      const effectiveRow = mapSearchShelterOverride(row, overrides.get(row.id) ?? null);
+      const effectiveRow = mapShelterOverride(row, overrides.get(row.id) ?? null);
       const matchScore = scoreSearchMatch(effectiveRow, input.query);
       const distanceKm =
         hasLocationSearch && input.latitude !== null && input.longitude !== null
@@ -957,7 +984,7 @@ export async function getAdminShelterOverrideContext(
     };
 
     const overrideResponse = await supabase
-      .from("shelter_status_overrides")
+      .from("shelter_overrides")
       .select(
         "id, shelter_id, name, address_line1, postal_code, city, capacity, status, accessibility_notes, summary, reason, is_active, created_by, updated_by, created_at, updated_at",
       )

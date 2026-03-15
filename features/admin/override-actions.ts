@@ -117,7 +117,7 @@ export async function saveShelterOverride(
     const supabase = createSupabaseAdminClient();
 
     const existingResponse = await supabase
-      .from("shelter_status_overrides")
+      .from("shelter_overrides")
       .select("id")
       .eq("shelter_id", shelterId)
       .eq("is_active", true)
@@ -135,12 +135,12 @@ export async function saveShelterOverride(
 
     const overrideResponse = existingResponse.data
       ? await supabase
-          .from("shelter_status_overrides")
+          .from("shelter_overrides")
           .update(payload)
           .eq("id", existingResponse.data.id)
           .select("id")
           .single()
-      : await supabase.from("shelter_status_overrides").insert(payload).select("id").single();
+      : await supabase.from("shelter_overrides").insert(payload).select("id").single();
 
     if (overrideResponse.error) {
       return {
@@ -215,7 +215,7 @@ export async function clearShelterOverride(
     const supabase = createSupabaseAdminClient();
 
     const existingResponse = await supabase
-      .from("shelter_status_overrides")
+      .from("shelter_overrides")
       .select("id")
       .eq("shelter_id", shelterId)
       .eq("is_active", true)
@@ -231,7 +231,7 @@ export async function clearShelterOverride(
     }
 
     const updateResponse = await supabase
-      .from("shelter_status_overrides")
+      .from("shelter_overrides")
       .update({
         is_active: false,
         effective_until: new Date().toISOString(),

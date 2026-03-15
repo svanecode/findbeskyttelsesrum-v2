@@ -161,7 +161,7 @@ values
   )
 on conflict (id) do nothing;
 
-insert into public.shelter_status_overrides (
+insert into public.shelter_overrides (
   id,
   shelter_id,
   status,
