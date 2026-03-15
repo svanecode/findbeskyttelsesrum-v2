@@ -29,6 +29,7 @@
 - Municipality lookup by slug with shelter list.
 - Shelter source list by shelter id.
 - `/find` free-text search across shelter name, address, city, and postcode with optional municipality narrowing.
+- `/find` coordinate search uses `shelters.latitude` and `shelters.longitude`, sorts by distance in the app layer, and still applies active shelter overrides before rendering public results.
 - Shelter detail trust fields derived from `shelter_sources` include primary source, verification date, import timestamp, and optional public notes.
 - Municipality landing-page cards derive primary source and quality state from related `shelter_sources` rows for each public shelter.
 - Admin override editing reads one shelter plus its active override record and writes only to `shelter_status_overrides`.

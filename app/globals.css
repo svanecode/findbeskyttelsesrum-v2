@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "leaflet/dist/leaflet.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -130,4 +131,19 @@
   a {
     @apply transition-colors;
   }
+}
+
+.search-results-map .leaflet-control-attribution,
+.search-results-map .leaflet-control-zoom {
+  border-color: var(--border);
+}
+
+.search-results-map .leaflet-popup-content-wrapper,
+.search-results-map .leaflet-popup-tip {
+  background: var(--card);
+  color: var(--card-foreground);
+}
+
+.search-results-map .leaflet-popup-content {
+  margin: 0.85rem 1rem;
 }

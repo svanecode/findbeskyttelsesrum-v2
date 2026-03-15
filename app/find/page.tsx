@@ -6,6 +6,7 @@ type FindRouteProps = {
     municipality?: string;
     lat?: string;
     lng?: string;
+    resolved?: string;
   }>;
 };
 

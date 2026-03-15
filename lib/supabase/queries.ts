@@ -1,5 +1,6 @@
 import { cache } from "react";
 
+import { calculateDistanceKm } from "@/lib/location/distance";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatOverrideStatusLabel, type OverrideStatus, type ShelterOverrideValues } from "@/lib/shelter/overrides";
@@ -111,6 +112,23 @@ type MunicipalityShelterRow = Pick<
   | "status"
 >;
 
+type SearchShelterRow = Pick<
+  ShelterRow,
+  | "id"
+  | "slug"
+  | "name"
+  | "address_line1"
+  | "postal_code"
+  | "city"
+  | "latitude"
+  | "longitude"
+  | "summary"
+  | "capacity"
+  | "status"
+  | "municipalities"
+  | "shelter_sources"
+>;
+
 export type FeaturedShelter = {
   id: string;
   slug: string;
@@ -194,19 +212,31 @@ export type SearchShelterResult = {
   addressLine1: string;
   postalCode: string;
   city: string;
+  latitude: number | null;
+  longitude: number | null;
   summary: string;
   capacity: number;
   statusLabel: string;
   primarySourceName: string | null;
   dataQualityScore: number | null;
+  distanceKm: number | null;
   municipality: MunicipalityRow;
 };
+
+type SearchMode = "text" | "location" | "combined";
 
 export type SearchShelterResultSet = {
   query: string | null;
   municipalitySlug: string | null;
   municipalityName: string | null;
   isMunicipalityFilterInvalid: boolean;
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  } | null;
+  searchMode: SearchMode;
+  hasNearbyResults: boolean;
+  nearbyRadiusKm: number | null;
   results: SearchShelterResult[];
 };
 
@@ -335,6 +365,19 @@ function applyShelterOverride<T>(imported: T, overrideValue: T | null | undefine
   return overrideValue ?? imported;
 }
 
+function mapSearchShelterOverride(row: SearchShelterRow, overrideRow: ShelterOverrideRow | null) {
+  return {
+    ...row,
+    name: applyShelterOverride(row.name, overrideRow?.name),
+    address_line1: applyShelterOverride(row.address_line1, overrideRow?.address_line1),
+    postal_code: applyShelterOverride(row.postal_code, overrideRow?.postal_code),
+    city: applyShelterOverride(row.city, overrideRow?.city),
+    summary: applyShelterOverride(row.summary, overrideRow?.summary),
+    capacity: applyShelterOverride(row.capacity, overrideRow?.capacity),
+    status: applyShelterOverride(row.status, overrideRow?.status),
+  };
+}
+
 function normalizeSearchText(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -423,6 +466,35 @@ function scoreSearchMatch(
   }
 
   return score;
+}
+
+async function getActiveShelterOverrides(
+  shelterIds: string[],
+): Promise<Map<string, ShelterOverrideRow>> {
+  if (shelterIds.length === 0) {
+    return new Map();
+  }
+
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("shelter_status_overrides")
+      .select(
+        "id, shelter_id, name, address_line1, postal_code, city, capacity, status, accessibility_notes, summary, reason, is_active, created_by, updated_by, created_at, updated_at",
+      )
+      .in("shelter_id", shelterIds)
+      .eq("is_active", true);
+
+    if (error || !data) {
+      return new Map();
+    }
+
+    return new Map(
+      (data as ShelterOverrideRow[]).map((overrideRow) => [overrideRow.shelter_id, overrideRow]),
+    );
+  } catch {
+    return new Map();
+  }
 }
 
 export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]> {
@@ -633,8 +705,24 @@ export const getMunicipalityBySlug = cache(async (slug: string): Promise<Municip
 export async function searchShelters(input: {
   query: string | null;
   municipalitySlug: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }): Promise<SearchShelterResultSet> {
   const supabase = await createSupabaseServerClient();
+  const hasLocationSearch = input.latitude !== null && input.longitude !== null;
+  const searchMode: SearchMode = hasLocationSearch
+    ? input.query
+      ? "combined"
+      : "location"
+    : "text";
+  const coordinates =
+    hasLocationSearch && input.latitude !== null && input.longitude !== null
+    ? {
+        latitude: input.latitude,
+        longitude: input.longitude,
+      }
+    : null;
+  const nearbyRadiusKm = hasLocationSearch ? 25 : null;
 
   if (!supabase) {
     return {
@@ -642,6 +730,10 @@ export async function searchShelters(input: {
       municipalitySlug: input.municipalitySlug,
       municipalityName: null,
       isMunicipalityFilterInvalid: false,
+      coordinates,
+      searchMode,
+      hasNearbyResults: false,
+      nearbyRadiusKm,
       results: [],
     };
   }
@@ -671,6 +763,10 @@ export async function searchShelters(input: {
       municipalitySlug: input.municipalitySlug,
       municipalityName: null,
       isMunicipalityFilterInvalid,
+      coordinates,
+      searchMode,
+      hasNearbyResults: false,
+      nearbyRadiusKm,
       results: [],
     };
   }
@@ -681,19 +777,21 @@ export async function searchShelters(input: {
   let queryBuilder = supabase
     .from("shelters")
     .select(
-      "id, slug, name, address_line1, postal_code, city, summary, capacity, status, municipalities(id, slug, name), shelter_sources(id, source_name, source_type, source_url, last_verified_at)",
-    )
-    .limit(50);
+      "id, slug, name, address_line1, postal_code, city, latitude, longitude, summary, capacity, status, municipalities(id, slug, name), shelter_sources(id, source_name, source_type, source_url, last_verified_at)",
+    );
 
   if (municipalityId) {
     queryBuilder = queryBuilder.eq("municipality_id", municipalityId);
   }
 
-  if (primaryToken) {
+  if (hasLocationSearch) {
+    queryBuilder = queryBuilder.not("latitude", "is", null).not("longitude", "is", null);
+  } else if (primaryToken) {
     const escaped = primaryToken.replace(/[%_,]/g, "");
     queryBuilder = queryBuilder.or(
       `name.ilike.%${escaped}%,address_line1.ilike.%${escaped}%,city.ilike.%${escaped}%,postal_code.ilike.%${escaped}%`,
     );
+    queryBuilder = queryBuilder.limit(50);
   }
 
   const { data, error } = await queryBuilder;
@@ -704,33 +802,47 @@ export async function searchShelters(input: {
       municipalitySlug: input.municipalitySlug,
       municipalityName,
       isMunicipalityFilterInvalid,
+      coordinates,
+      searchMode,
+      hasNearbyResults: false,
+      nearbyRadiusKm,
       results: [],
     };
   }
 
-  const results = (data as Array<
-    Pick<
-      ShelterRow,
-      | "id"
-      | "slug"
-      | "name"
-      | "address_line1"
-      | "postal_code"
-      | "city"
-      | "summary"
-      | "capacity"
-      | "status"
-      | "municipalities"
-      | "shelter_sources"
-    >
-  >)
-    .map((row) => ({
-      row,
-      matchScore: scoreSearchMatch(row, input.query),
-    }))
+  const rows = data as SearchShelterRow[];
+  const overrides = await getActiveShelterOverrides(rows.map((row) => row.id));
+  const rankedResults = rows
+    .map((row) => {
+      const effectiveRow = mapSearchShelterOverride(row, overrides.get(row.id) ?? null);
+      const matchScore = scoreSearchMatch(effectiveRow, input.query);
+      const distanceKm =
+        hasLocationSearch && input.latitude !== null && input.longitude !== null
+          ? calculateDistanceKm(
+              input.latitude,
+              input.longitude,
+              Number(effectiveRow.latitude),
+              Number(effectiveRow.longitude),
+            )
+          : null;
+
+      return {
+        row: effectiveRow,
+        matchScore,
+        distanceKm,
+      };
+    })
     .filter(({ matchScore }) => matchScore > 0 || !input.query)
     .sort((left, right) => {
-      if (right.matchScore !== left.matchScore) {
+      if (hasLocationSearch) {
+        if ((left.distanceKm ?? Number.POSITIVE_INFINITY) !== (right.distanceKm ?? Number.POSITIVE_INFINITY)) {
+          return (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY);
+        }
+
+        if (right.matchScore !== left.matchScore) {
+          return right.matchScore - left.matchScore;
+        }
+      } else if (right.matchScore !== left.matchScore) {
         return right.matchScore - left.matchScore;
       }
 
@@ -738,31 +850,45 @@ export async function searchShelters(input: {
       const rightMunicipality = mapMunicipality(right.row.municipalities).name;
 
       return leftMunicipality.localeCompare(rightMunicipality);
-    })
-    .map(({ row }) => {
-      const primarySource = getPrimarySource(row.shelter_sources);
-
-      return {
-        id: row.id,
-        slug: row.slug,
-        name: row.name,
-        addressLine1: row.address_line1,
-        postalCode: row.postal_code,
-        city: row.city,
-        summary: row.summary,
-        capacity: row.capacity,
-        statusLabel: formatStatus(row.status),
-        primarySourceName: primarySource?.source_name ?? null,
-        dataQualityScore: null,
-        municipality: mapMunicipality(row.municipalities),
-      };
     });
+
+  const results = rankedResults.slice(0, 50).map(({ row, distanceKm }) => {
+    const primarySource = getPrimarySource(row.shelter_sources);
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      addressLine1: row.address_line1,
+      postalCode: row.postal_code,
+      city: row.city,
+      latitude: parseCoordinate(row.latitude),
+      longitude: parseCoordinate(row.longitude),
+      summary: row.summary,
+      capacity: row.capacity,
+      statusLabel: formatStatus(row.status),
+      primarySourceName: primarySource?.source_name ?? null,
+      dataQualityScore: null,
+      distanceKm,
+      municipality: mapMunicipality(row.municipalities),
+    };
+  });
+
+  const hasNearbyResults = hasLocationSearch
+    ? results.some(
+        (result) => result.distanceKm !== null && nearbyRadiusKm !== null && result.distanceKm <= nearbyRadiusKm,
+      )
+    : false;
 
   return {
     query: input.query,
     municipalitySlug: input.municipalitySlug,
     municipalityName,
     isMunicipalityFilterInvalid,
+    coordinates,
+    searchMode,
+    hasNearbyResults,
+    nearbyRadiusKm,
     results,
   };
 }

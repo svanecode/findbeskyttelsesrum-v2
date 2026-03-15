@@ -12,6 +12,9 @@
 ## Conventions
 - Keep route files thin and focused on composition.
 - Place data access in `lib/supabase`.
+- Keep browser geolocation handling local to the feature that needs it and pass coordinates through URL params into server-rendered search routes.
+- Keep provider integrations isolated in small `lib/*` modules; current address geocoding lives in `lib/geocoding/dawa.ts` and feeds the existing `/find` coordinate contract.
+- Keep the `/find` map isolated to a dedicated client component tree fed by the existing search result set; do not introduce a separate map-only fetch path in the first version.
 - Place feature-specific view models and UI under the relevant `features/*` directory.
 - Keep public form handling close to the relevant feature and route writes through explicit server actions.
 - Keep internal moderation actions explicit and server-only; admin authorization currently uses Supabase Auth plus an email allowlist.

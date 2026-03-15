@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
@@ -11,18 +13,30 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatDistanceLabel } from "@/lib/location/distance";
 import type { SearchShelterResult } from "@/lib/supabase/queries";
 
 type SearchResultCardProps = {
   result: SearchShelterResult;
+  isSelected?: boolean;
+  onSelect?: (resultId: string) => void;
 };
 
-export function SearchResultCard({ result }: SearchResultCardProps) {
+export function SearchResultCard({
+  result,
+  isSelected = false,
+  onSelect,
+}: SearchResultCardProps) {
+  const distanceLabel = formatDistanceLabel(result.distanceKm);
+
   return (
-    <Card className="border border-border/70 bg-card/95">
+    <Card
+      className={`border bg-card/95 transition-colors ${isSelected ? "border-primary/60 ring-1 ring-primary/20" : "border-border/70"}`}
+    >
       <CardHeader className="gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{result.statusLabel}</Badge>
+          {distanceLabel ? <Badge variant="outline">{distanceLabel}</Badge> : null}
           {result.dataQualityScore !== null ? (
             <Badge variant="secondary">Quality {result.dataQualityScore}/100</Badge>
           ) : (
@@ -50,11 +64,24 @@ export function SearchResultCard({ result }: SearchResultCardProps) {
         <p className="leading-6">{result.summary}</p>
       </CardContent>
       <CardFooter className="justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{result.capacity} people</p>
-        <Button render={<Link href={`/beskyttelsesrum/${result.slug}`} />} variant="link">
-          Open shelter
-          <ArrowRight />
-        </Button>
+        <button
+          className="text-left text-sm text-muted-foreground"
+          onClick={() => onSelect?.(result.id)}
+          type="button"
+        >
+          {result.capacity} people
+        </button>
+        <div className="flex items-center gap-2">
+          {onSelect ? (
+            <Button onClick={() => onSelect(result.id)} type="button" variant="ghost">
+              Show on map
+            </Button>
+          ) : null}
+          <Button render={<Link href={`/beskyttelsesrum/${result.slug}`} />} variant="link">
+            Open shelter
+            <ArrowRight />
+          </Button>
+        </div>
       </CardFooter>
     </Card>
   );

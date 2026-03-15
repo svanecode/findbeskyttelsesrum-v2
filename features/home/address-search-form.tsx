@@ -11,13 +11,15 @@ export function AddressSearchForm() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [isLocating, setIsLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
 
   function handleUseLocation() {
     if (!navigator.geolocation) {
-      window.alert("Geolocation is not available in this browser.");
+      setLocationMessage("Geolocation is not available in this browser.");
       return;
     }
 
+    setLocationMessage(null);
     setIsLocating(true);
 
     navigator.geolocation.getCurrentPosition(
@@ -29,9 +31,19 @@ export function AddressSearchForm() {
         });
         setIsLocating(false);
       },
-      () => {
+      (error) => {
         setIsLocating(false);
-        window.alert("We could not read your current location.");
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationMessage("Location access was denied. You can still search by address.");
+          return;
+        }
+
+        if (error.code === error.POSITION_UNAVAILABLE) {
+          setLocationMessage("Your current location is unavailable right now.");
+          return;
+        }
+
+        setLocationMessage("We could not read your current location.");
       },
       {
         enableHighAccuracy: true,
@@ -67,6 +79,9 @@ export function AddressSearchForm() {
         {isLocating ? <LoaderCircle className="animate-spin" /> : <LocateFixed />}
         Use my location
       </Button>
+      {locationMessage ? (
+        <p className="text-sm leading-6 text-muted-foreground">{locationMessage}</p>
+      ) : null}
     </div>
   );
 }
