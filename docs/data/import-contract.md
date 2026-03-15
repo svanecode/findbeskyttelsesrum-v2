@@ -8,6 +8,10 @@ Define the exact contract the future official-data gatherer must write into Supa
   - BBR GraphQL through Datafordeler
   - DAR GraphQL through Datafordeler
 - DAWA remains a public geocoding/search aid, not the shelter baseline source of truth.
+- Current official inclusion rule:
+  - nationwide scope by default
+  - BBR `status = 6` is the primary shelter-selection rule
+  - municipality and usage-code filters are optional operational narrowing only
 
 ## Importer Responsibilities
 - Read official shelter-like source records.
@@ -27,7 +31,7 @@ Define the exact contract the future official-data gatherer must write into Supa
 - The current repo does not yet provide:
   - background scheduling
   - full official field coverage
-  - final shelter-eligibility logic across all official source records
+  - final municipality metadata coverage across all official source records
 
 ## Required Import Output
 

@@ -22,6 +22,8 @@ Track how official baseline data enters the system, how admin corrections stay s
 - The first real official adapter now lives in `lib/importer/adapters/datafordeler-official-adapter.ts`.
 - Importer writes now target `app_v2`, not legacy `public`.
 - The app now assumes `app_v2` may start sparse or partially populated and uses fallback public copy when imported summaries or source summaries are still blank.
+- The default Datafordeler scope is now nationwide; BBR `status = 6` is the primary official inclusion rule.
+- Optional municipality and usage-code env vars can still narrow a run for debugging or phased validation, but they are no longer required for normal execution.
 - CLI entry points:
   - `npm run importer:fixture -- <snapshot>`
   - `npm run importer:datafordeler`

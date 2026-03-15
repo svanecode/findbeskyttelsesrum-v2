@@ -63,9 +63,10 @@ Current normalization behavior:
   - `canonical_source_name = datafordeler-bbr-dar`
   - `canonical_source_reference = BBR_Bygning.id_lokalId`
 - eligibility filter:
-  - municipality allowlist from env
-  - BBR usage-code allowlist from env
-  - BBR active-status allowlist, defaulting to `6`
+  - nationwide by default
+  - BBR `status = 6` as the primary official inclusion rule
+  - optional municipality narrowing from env only when an operator explicitly wants a smaller run
+  - optional BBR usage-code narrowing from env only when an operator explicitly wants a smaller run
   - DAR active-status allowlist, defaulting to `3`
   - explicit skip when no DAR house-number reference or no usable DAR address exists
 - municipality:
@@ -87,11 +88,11 @@ Current normalization behavior:
 What is now considered validated:
 - canonical identity and lifecycle handling work with a real source adapter shape
 - BBR and DAR are fetched separately and normalized through one explicit adapter
+- the real nationwide business rule is explicit in code: BBR status `6` drives inclusion
 - incomplete DAR data no longer fails silently; skipped records are counted and warned
 - municipality fallback is explicit and warning-backed instead of being silently invented
 
 What is still provisional:
-- the exact BBR shelter-eligibility usage-code set still needs final product/source confirmation
 - municipality metadata should eventually be fully sourced instead of relying on local overrides/fallbacks
 - official capacity and readiness semantics are still deferred
 
@@ -134,7 +135,7 @@ Expected behavior:
 - No scheduling or background worker yet.
 - No raw payload storage yet.
 - `source_summary` still remains a compatibility field on `shelters`; the importer sets it only for new rows and does not treat it as an importer-owned update field.
-- The Datafordeler adapter currently depends on env-configured BBR usage codes; the exact shelter-eligibility filter still needs product/source confirmation.
+- `DATAFORDELER_MUNICIPALITY_CODES` and BBR usage-code env vars are now optional operational narrowing controls, not required business-rule inputs.
 - The real adapter currently imports only the narrow field subset documented above; it does not claim full BBR/DAR shelter coverage yet.
 - The real adapter is suitable for later GitHub Actions execution, but the workflow itself is not implemented yet.
 

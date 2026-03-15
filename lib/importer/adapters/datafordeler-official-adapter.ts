@@ -63,7 +63,6 @@ type DatafordelerAdapterConfig = {
   municipalityCodes: string[];
   municipalityOverrides: Record<string, MunicipalityMetadata>;
   shelterUsageCodes: Set<string>;
-  acceptedBbrStatuses: Set<string>;
   acceptedDarStatuses: Set<string>;
   pageSize: number;
   requestTimeoutMs: number;
@@ -100,43 +99,69 @@ const defaultMunicipalityOverrides: Record<string, MunicipalityMetadata> = {
   },
 };
 
-const fetchBbrBuildingsQuery = `
-  query FetchBbrBuildings(
-    $first: Int!
-    $after: Cursor
-    $municipalityCodes: [String!]
-    $usageCodes: [String!]
-    $registreringstid: DateTime
-    $virkningstid: DateTime
-  ) {
-    BBR_Bygning(
-      first: $first
-      after: $after
-      registreringstid: $registreringstid
-      virkningstid: $virkningstid
-      where: {
-        kommunekode: { in: $municipalityCodes }
-        byg021BygningensAnvendelse: { in: $usageCodes }
-      }
+const BBR_ACTIVE_STATUS = "6";
+
+function buildFetchBbrBuildingsQuery(options: {
+  hasMunicipalityFilter: boolean;
+  hasUsageCodeFilter: boolean;
+}) {
+  const variableDefinitions = [
+    "$first: Int!",
+    "$after: Cursor",
+    "$registreringstid: DateTime",
+    "$virkningstid: DateTime",
+  ];
+
+  if (options.hasMunicipalityFilter) {
+    variableDefinitions.push("$municipalityCodes: [String!]");
+  }
+
+  if (options.hasUsageCodeFilter) {
+    variableDefinitions.push("$usageCodes: [String!]");
+  }
+
+  const whereParts = [`status: { eq: "${BBR_ACTIVE_STATUS}" }`];
+
+  if (options.hasMunicipalityFilter) {
+    whereParts.push("kommunekode: { in: $municipalityCodes }");
+  }
+
+  if (options.hasUsageCodeFilter) {
+    whereParts.push("byg021BygningensAnvendelse: { in: $usageCodes }");
+  }
+
+  return `
+    query FetchBbrBuildings(
+      ${variableDefinitions.join("\n      ")}
     ) {
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      edges {
-        node {
-          id_lokalId
-          kommunekode
-          status
-          husnummer
-          byg007Bygningsnummer
-          byg021BygningensAnvendelse
-          byg404Koordinat
+      BBR_Bygning(
+        first: $first
+        after: $after
+        registreringstid: $registreringstid
+        virkningstid: $virkningstid
+        where: {
+          ${whereParts.join("\n          ")}
+        }
+      ) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            id_lokalId
+            kommunekode
+            status
+            husnummer
+            byg007Bygningsnummer
+            byg021BygningensAnvendelse
+            byg404Koordinat
+          }
         }
       }
     }
-  }
-`;
+  `;
+}
 
 const fetchDarHouseNumbersQuery = `
   query FetchDarHouseNumbers(
@@ -201,13 +226,6 @@ function getOptionalNumber(name: string, fallback: number) {
   return parsed;
 }
 
-function getCsvEnv(name: string) {
-  return getRequiredEnv(name)
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
-
 function getOptionalCsvEnv(name: string) {
   const raw = process.env[name]?.trim();
 
@@ -231,11 +249,7 @@ function getDatafordelerShelterUsageCodes() {
       .filter(Boolean);
   }
 
-  return getCsvEnv("DATAFORDELER_BBR_USAGE_CODES");
-}
-
-function getOptionalStatusSet(name: string, fallback: string[]) {
-  return new Set(getOptionalCsvEnv(name).length > 0 ? getOptionalCsvEnv(name) : fallback);
+  return getOptionalCsvEnv("DATAFORDELER_BBR_USAGE_CODES");
 }
 
 function slugify(value: string) {
@@ -342,14 +356,17 @@ function getConfig(): DatafordelerAdapterConfig {
       process.env.DATAFORDELER_BBR_GRAPHQL_URL?.trim() || "https://graphql.datafordeler.dk/BBR/v1",
     darGraphqlUrl:
       process.env.DATAFORDELER_DAR_GRAPHQL_URL?.trim() || "https://graphql.datafordeler.dk/DAR/v1",
-    municipalityCodes: getCsvEnv("DATAFORDELER_MUNICIPALITY_CODES"),
+    municipalityCodes: getOptionalCsvEnv("DATAFORDELER_MUNICIPALITY_CODES"),
     municipalityOverrides: {
       ...defaultMunicipalityOverrides,
       ...parseMunicipalityOverrides(process.env.DATAFORDELER_MUNICIPALITY_METADATA),
     },
     shelterUsageCodes: new Set(getDatafordelerShelterUsageCodes()),
-    acceptedBbrStatuses: getOptionalStatusSet("DATAFORDELER_BBR_ACTIVE_STATUSES", ["6"]),
-    acceptedDarStatuses: getOptionalStatusSet("DATAFORDELER_DAR_ACTIVE_STATUSES", ["3"]),
+    acceptedDarStatuses: new Set(
+      getOptionalCsvEnv("DATAFORDELER_DAR_ACTIVE_STATUSES").length > 0
+        ? getOptionalCsvEnv("DATAFORDELER_DAR_ACTIVE_STATUSES")
+        : ["3"],
+    ),
     pageSize: getOptionalNumber("DATAFORDELER_PAGE_SIZE", 200),
     requestTimeoutMs: getOptionalNumber("DATAFORDELER_REQUEST_TIMEOUT_MS", 30000),
     bitemporalTimestamp: process.env.DATAFORDELER_BITEMPORAL_TIMESTAMP?.trim() || new Date().toISOString(),
@@ -381,7 +398,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     void snapshot;
 
     console.log(
-      `[importer] datafordeler: starting BBR fetch for municipalities ${this.config.municipalityCodes.join(", ")}`,
+      `[importer] datafordeler: starting nationwide BBR status-${BBR_ACTIVE_STATUS} fetch${this.config.municipalityCodes.length > 0 ? ` with municipality narrowing (${this.config.municipalityCodes.join(", ")})` : ""}${this.config.shelterUsageCodes.size > 0 ? ` and usage-code narrowing (${[...this.config.shelterUsageCodes].join(", ")})` : ""}`,
     );
 
     const warnings: ImporterWarning[] = [];
@@ -441,6 +458,12 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     const nodes: BbrBuildingNode[] = [];
     let after: string | null = null;
     let page = 1;
+    const hasMunicipalityFilter = this.config.municipalityCodes.length > 0;
+    const hasUsageCodeFilter = this.config.shelterUsageCodes.size > 0;
+    const query = buildFetchBbrBuildingsQuery({
+      hasMunicipalityFilter,
+      hasUsageCodeFilter,
+    });
 
     while (true) {
       console.log(`[importer] datafordeler: fetching BBR page ${page}`);
@@ -450,14 +473,18 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       try {
         payload = await this.bbrClient.query<BbrBuildingsResponse, Record<string, unknown>>({
           operationName: "FetchBbrBuildings",
-          query: fetchBbrBuildingsQuery,
+          query,
           variables: {
             first: this.config.pageSize,
             after,
-            municipalityCodes: this.config.municipalityCodes,
-            usageCodes: [...this.config.shelterUsageCodes],
             registreringstid: this.config.bitemporalTimestamp,
             virkningstid: this.config.bitemporalTimestamp,
+            ...(hasMunicipalityFilter
+              ? { municipalityCodes: this.config.municipalityCodes }
+              : {}),
+            ...(hasUsageCodeFilter
+              ? { usageCodes: [...this.config.shelterUsageCodes] }
+              : {}),
           },
         });
       } catch (error) {
@@ -549,22 +576,40 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     warnings: ImporterWarning[],
     counters: AdapterCounters,
   ) {
-    if (!building.status || !this.config.acceptedBbrStatuses.has(building.status)) {
+    if (building.status !== BBR_ACTIVE_STATUS) {
       warnings.push({
         level: "warning",
         code: "bbr_ineligible_status",
-        message: `Skipped BBR building due to non-active status ${building.status ?? "unknown"}.`,
+        message: `Skipped BBR building because status ${building.status ?? "unknown"} is not the official shelter inclusion status ${BBR_ACTIVE_STATUS}.`,
         reference: building.id_lokalId,
       });
       counters.skippedRecords += 1;
       return false;
     }
 
-    if (!building.byg021BygningensAnvendelse || !this.config.shelterUsageCodes.has(building.byg021BygningensAnvendelse)) {
+    if (
+      this.config.municipalityCodes.length > 0 &&
+      !this.config.municipalityCodes.includes(building.kommunekode)
+    ) {
       warnings.push({
         level: "warning",
-        code: "bbr_ineligible_usage",
-        message: `Skipped BBR building due to usage code ${building.byg021BygningensAnvendelse ?? "unknown"}.`,
+        code: "bbr_excluded_municipality_filter",
+        message: `Skipped BBR building because municipality ${building.kommunekode} is outside the optional municipality filter.`,
+        reference: building.id_lokalId,
+      });
+      counters.skippedRecords += 1;
+      return false;
+    }
+
+    if (
+      this.config.shelterUsageCodes.size > 0 &&
+      (!building.byg021BygningensAnvendelse ||
+        !this.config.shelterUsageCodes.has(building.byg021BygningensAnvendelse))
+    ) {
+      warnings.push({
+        level: "warning",
+        code: "bbr_excluded_usage_filter",
+        message: `Skipped BBR building because usage code ${building.byg021BygningensAnvendelse ?? "unknown"} is outside the optional usage-code filter.`,
         reference: building.id_lokalId,
       });
       counters.skippedRecords += 1;

@@ -29,8 +29,9 @@
 13. Imported shelter lifecycle is modeled on `app_v2.shelters` through `import_state`, `last_seen_at`, `last_imported_at`, and canonical official source identity fields.
 14. The first importer skeleton now lives in `lib/importer`, includes both a fixture adapter and a narrow real Datafordeler BBR + DAR adapter, and now targets `app_v2` rather than the legacy `public` schema.
 15. The importer CLI is env-var driven, emits concise operational logs, supports dry-run validation, and is suitable for later non-interactive GitHub Actions execution, but no workflow has been added yet.
-16. The next official-data gatherer iteration is expected to extend that importer skeleton while following the import and field-ownership specs in `docs/data/import-model.md`, `docs/data/field-ownership.md`, and `docs/data/import-contract.md`.
-17. Public runtime reads are now hardened for sparse `app_v2` content: blank imported summaries and blank source summaries are converted into explicit fallback copy instead of rendering empty sections.
+16. The current real-source selection rule is explicit: nationwide BBR `status = 6` records are the primary inclusion path, with municipality and usage-code filters retained only as optional operational narrowing.
+17. The next official-data gatherer iteration is expected to extend that importer skeleton while following the import and field-ownership specs in `docs/data/import-model.md`, `docs/data/field-ownership.md`, and `docs/data/import-contract.md`.
+18. Public runtime reads are now hardened for sparse `app_v2` content: blank imported summaries and blank source summaries are converted into explicit fallback copy instead of rendering empty sections.
 
 ## Current Boundaries
 - No advanced map behavior yet beyond the first shared results map on `/find`.
