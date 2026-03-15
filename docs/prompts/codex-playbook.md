@@ -26,6 +26,10 @@
 - If touching importer work, does it follow the field ownership and import contract docs instead of inferring ownership from current table usage?
 - If touching importer work, does it treat `import_state`, `last_seen_at`, `last_imported_at`, and canonical source identity as importer-owned shelter lifecycle fields?
 - If touching importer work, does it avoid overwriting admin enrichment, override rows, and operational audit history?
+- If touching importer work, does the adapter emit the normalized importer contract in `lib/importer/types.ts` instead of leaking source-specific shapes into the write path?
+- If touching importer work, does local verification still work through `npm run importer:fixture -- <snapshot>`?
+- If touching importer work, does real-source execution still work through env vars and a CLI path suitable for later GitHub Actions use?
+- If touching importer work, are any currently deferred official fields documented explicitly instead of being silently guessed?
 - Is the change small enough to review easily?
 
 ## Delivery Checklist

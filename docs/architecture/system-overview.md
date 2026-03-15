@@ -26,11 +26,13 @@
 10. `/admin` uses Supabase Auth sessions plus an allowlist of approved admin email addresses, while moderation reads and writes remain server-only.
 11. Manual shelter overrides are stored separately from imported records and applied as effective values on the public shelter detail, municipality, and search read paths when an active override exists.
 12. Imported shelter lifecycle is modeled on `shelters` through `import_state`, `last_seen_at`, `last_imported_at`, and canonical official source identity fields.
-13. The next official-data gatherer is expected to follow the import and field-ownership specs in `docs/data/import-model.md`, `docs/data/field-ownership.md`, and `docs/data/import-contract.md`.
+13. The first importer skeleton now lives in `lib/importer`, includes both a fixture adapter and a narrow real Datafordeler BBR + DAR adapter, and writes only through server-side Supabase admin access.
+14. The importer CLI is env-var driven and suitable for later non-interactive GitHub Actions execution, but no workflow has been added yet.
+15. The next official-data gatherer iteration is expected to extend that importer skeleton while following the import and field-ownership specs in `docs/data/import-model.md`, `docs/data/field-ownership.md`, and `docs/data/import-contract.md`.
 
 ## Current Boundaries
 - No advanced map behavior yet beyond the first shared results map on `/find`.
 - No advanced geocoding or ranking logic yet.
 - No public auth UI beyond the internal admin login flow.
 - No background job runner yet beyond documented import flow assumptions.
-- No new official-data gatherer implementation yet; only the import contract and ownership model are defined.
+- No workflow scheduler or background job runner yet for the official importer.

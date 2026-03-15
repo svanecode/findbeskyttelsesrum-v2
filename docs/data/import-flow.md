@@ -12,6 +12,21 @@ Track how official baseline data enters the system, how admin corrections stay s
 6. Compute effective public values at read time from override-first precedence.
 7. Record notable operational actions in `audit_events`.
 
+## Current Skeleton Implementation
+- The first importer skeleton now lives in `lib/importer`.
+- Local development runs use the fixture adapter in `lib/importer/adapters/fixture-adapter.ts`.
+- The first real official adapter now lives in `lib/importer/adapters/datafordeler-official-adapter.ts`.
+- CLI entry points:
+  - `npm run importer:fixture -- <snapshot>`
+  - `npm run importer:datafordeler`
+- The skeleton currently proves:
+  - canonical source identity matching
+  - importer-owned field upserts
+  - `missing_from_source` lifecycle handling
+  - import run logging
+  - narrow audit event creation
+  - env-var-driven non-interactive execution for later GitHub Actions use
+
 ## Required Future Flow
 1. Match by canonical official source identity first.
 2. Update only importer-owned fields.
@@ -28,3 +43,4 @@ Track how official baseline data enters the system, how admin corrections stay s
 - Moderation status changes can be audited without mutating the underlying shelter record directly.
 - Manual overrides should update only the separate override record; imported shelter values remain traceable and unchanged.
 - The full gatherer contract lives in `docs/data/import-contract.md`.
+- The current skeleton implementation is documented in `docs/data/importer-implementation.md`.

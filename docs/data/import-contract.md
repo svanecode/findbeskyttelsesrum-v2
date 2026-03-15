@@ -17,6 +17,17 @@ Define the exact contract the future official-data gatherer must write into Supa
 - Never overwrite admin enrichment or active admin override values.
 - Record import-run and source-row history clearly enough to debug changes and deletions.
 
+## Current Skeleton Boundary
+- The current repo implementation provides:
+  - a normalized record contract in code
+  - a fixture-backed adapter
+  - a real Datafordeler-backed adapter using a narrow BBR + DAR subset
+  - the importer service that writes the current schema
+- The current repo does not yet provide:
+  - background scheduling
+  - full official field coverage
+  - final shelter-eligibility logic across all official source records
+
 ## Required Import Output
 
 ### 1. Import Run Row
