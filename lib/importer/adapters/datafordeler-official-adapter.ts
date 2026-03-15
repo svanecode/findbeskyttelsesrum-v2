@@ -1,5 +1,3 @@
-import proj4 from "proj4";
-
 import type { OfficialSourceAdapter } from "@/lib/importer/source-adapter";
 import type {
   ImportedShelterRecord,
@@ -16,7 +14,6 @@ type BbrBuildingNode = {
   husnummer: string | null;
   byg007Bygningsnummer: string | null;
   byg021BygningensAnvendelse: string | null;
-  byg404Koordinat: string | null;
 };
 
 type DarHouseNumberNode = {
@@ -78,14 +75,6 @@ type AdapterCounters = {
 
 const CANONICAL_SOURCE_NAME = "datafordeler-bbr-dar";
 const BBR_DOCS_URL = "https://datafordeler.dk/dataoversigt/bygnings-og-boligregistret-bbr/bbr-graphql/";
-const ETRS89_UTM32 = "EPSG:25832";
-const WGS84 = "EPSG:4326";
-
-proj4.defs(
-  ETRS89_UTM32,
-  "+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type=crs",
-);
-
 const defaultMunicipalityOverrides: Record<string, MunicipalityMetadata> = {
   "0101": {
     slug: "kobenhavn",
@@ -107,9 +96,9 @@ function buildFetchBbrBuildingsQuery(options: {
 }) {
   const variableDefinitions = [
     "$first: Int!",
-    "$after: Cursor",
-    "$registreringstid: DateTime",
-    "$virkningstid: DateTime",
+    "$after: String",
+    "$registreringstid: DafDateTime",
+    "$virkningstid: DafDateTime",
   ];
 
   if (options.hasMunicipalityFilter) {
@@ -155,7 +144,6 @@ function buildFetchBbrBuildingsQuery(options: {
             husnummer
             byg007Bygningsnummer
             byg021BygningensAnvendelse
-            byg404Koordinat
           }
         }
       }
@@ -292,42 +280,6 @@ function parseMunicipalityOverrides(raw: string | undefined) {
       ];
     }),
   ) as Record<string, MunicipalityMetadata>;
-}
-
-function parseBbrPoint(point: string | null) {
-  if (!point) {
-    return {
-      latitude: null,
-      longitude: null,
-    };
-  }
-
-  const match = point.match(/POINT\s*\(?\s*([0-9.]+)\s+([0-9.]+)\s*\)?/i);
-
-  if (!match) {
-    return {
-      latitude: null,
-      longitude: null,
-    };
-  }
-
-  const [, xRaw, yRaw] = match;
-  const x = Number(xRaw);
-  const y = Number(yRaw);
-
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return {
-      latitude: null,
-      longitude: null,
-    };
-  }
-
-  const [longitude, latitude] = proj4(ETRS89_UTM32, WGS84, [x, y]);
-
-  return {
-    latitude,
-    longitude,
-  };
 }
 
 function buildShelterSlug(input: {
@@ -683,17 +635,14 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     }
 
     const addressLine1 = `${roadName} ${houseNumberText}`.trim();
-    const coordinates = parseBbrPoint(building.byg404Koordinat);
-
-    if (coordinates.latitude === null || coordinates.longitude === null) {
-      warnings.push({
-        level: "warning",
-        code: "bbr_missing_coordinates",
-        message: "BBR building did not expose parseable coordinates. The record will still be imported.",
-        reference: building.id_lokalId,
-      });
-      counters.missingCoordinatesCount += 1;
-    }
+    warnings.push({
+      level: "warning",
+      code: "bbr_coordinates_deferred",
+      message:
+        "BBR coordinates are temporarily deferred in the real adapter until the GraphQL coordinate field shape is confirmed.",
+      reference: building.id_lokalId,
+    });
+    counters.missingCoordinatesCount += 1;
 
     const canonicalSourceReference = building.id_lokalId;
 
@@ -709,8 +658,8 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         addressLine1,
         postalCode,
         city,
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
+        latitude: null,
+        longitude: null,
         capacity: 0,
         status: "under_review",
         accessibilityNotes: null,

@@ -31,8 +31,8 @@ export class DatafordelerGraphqlClient {
     const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
     const url = new URL(this.endpoint);
 
-    if (!url.searchParams.has("api-key")) {
-      url.searchParams.set("api-key", this.apiKey);
+    if (!url.searchParams.has("apiKey")) {
+      url.searchParams.set("apiKey", this.apiKey);
     }
 
     try {
@@ -40,8 +40,6 @@ export class DatafordelerGraphqlClient {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-gravitee-api-key": this.apiKey,
-          "api-key": this.apiKey,
         },
         body: JSON.stringify({
           operationName: input.operationName,
