@@ -35,8 +35,9 @@ Document the first official-data importer skeleton that now exists in code.
    - `last_seen_at`
    - `last_imported_at`
 8. Upserts one `shelter_sources` row per shelter/source identity.
-9. Marks previously known shelters for the same canonical source as `missing_from_source` when they are absent from the current run.
-10. Finishes the `import_runs` row and writes narrow `audit_events` for:
+9. Checkpoints BBR paging progress on `app_v2.import_runs` after each successful page.
+10. Marks previously known shelters for the same canonical source as `missing_from_source` only when the run completed successfully and passed the missing-transition coverage guard.
+11. Finishes the `import_runs` row and writes narrow `audit_events` for:
    - missing records
    - restored records
    - failed runs
@@ -127,6 +128,7 @@ Run the real Datafordeler adapter with:
 npm run importer:datafordeler
 npm run importer:datafordeler -- --dry-run
 npm run importer:datafordeler -- --dry-run --max-pages 25
+npm run importer:datafordeler -- --resume-latest
 ```
 
 The Datafordeler path is designed for non-interactive execution:
@@ -135,9 +137,26 @@ The Datafordeler path is designed for non-interactive execution:
 - missing env vars and network/auth failures fail the process with a non-zero exit code
 - dry-run fetches and normalizes live data without writing to Supabase
 - `--max-pages` gives dry-run validation a small, explicit safety cap for live-source debugging
-- Datafordeler requests now retry with bounded backoff on timeout, 429, and 5xx responses
+- `--resume-latest` resumes from the latest failed `app_v2.import_runs` checkpoint for the same source
+- Datafordeler requests now retry with bounded backoff on timeout, 429, 5xx, and transient non-JSON upstream responses
+- non-JSON responses now log HTTP status, content type, and a short safe body preview instead of failing as opaque parse errors
 - A capped live dry-run can now complete end-to-end with the current DAR query shape
 - A capped live dry-run can now complete end-to-end with coordinates included in the normalized output when BBR provides valid WKT
+
+## Long-run Safety Rules
+- A failed run never applies missing/deactivation transitions.
+- A resumed run never applies missing/deactivation transitions. Resume is only for finishing the source scan safely.
+- A non-resumed successful run applies `missing_from_source` transitions only when `records_seen >= max(25, ceil(previous_active_count * 0.8))`.
+- If that guard blocks missing transitions, the run still succeeds, but the reason is stored on `app_v2.import_runs`.
+
+## Checkpoint Fields
+`app_v2.import_runs` now stores:
+- `pages_fetched`
+- `last_successful_page`
+- `last_successful_cursor`
+- `resumed_from_import_run_id`
+- `missing_transitions_applied`
+- `missing_transitions_skipped_reason`
 
 Expected behavior:
 - `baseline`
@@ -155,6 +174,7 @@ Expected behavior:
 - Status `6` alone was too broad for a believable shelter set; positive `byg069Sikringsrumpladser` is now part of the effective inclusion rule.
 - The real adapter currently imports only the narrow field subset documented above; it does not claim full BBR/DAR shelter coverage yet.
 - The real adapter is suitable for later GitHub Actions execution, but the workflow itself is not implemented yet.
+- Before GitHub Actions scheduling is safe, one full real run should complete, checkpoint/resume should be verified at least once, and the missing-transition guard should behave as expected on real `app_v2` counts.
 
 ## Next Extension Path
 - Extend the Datafordeler adapter with the next verified BBR/DAR shelter field mappings while keeping the same normalized contract.

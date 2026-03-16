@@ -31,6 +31,9 @@
 - If touching importer work, does real-source execution still work through env vars and a CLI path suitable for later GitHub Actions use?
 - If touching importer work, does the real-source path fail clearly on auth, timeout, network, and source-shape errors?
 - If touching importer work, does the real-source path expose skip counts and warning signals instead of silently dropping incomplete source rows?
+- If touching importer work, do non-JSON Datafordeler responses surface status, content type, and a short safe body preview instead of opaque JSON parse failures?
+- If touching importer work, do long-running runs checkpoint progress explicitly and support resuming from the latest failed run without inventing a broader job system?
+- If touching importer work, are missing/deactivation transitions blocked unless the run completed successfully and cleared the documented coverage guard?
 - If touching live Datafordeler selection logic, does it still enforce positive `byg069Sikringsrumpladser` instead of relying on BBR status `6` alone?
 - If touching DAR enrichment, does the adapter treat `DAR_Husnummer.navngivenVej` and `DAR_Husnummer.postnummer` as relation ids and resolve them explicitly instead of assuming nested objects?
 - If touching BBR coordinates, does the adapter use the confirmed live shape `byg404Koordinat.wkt` and convert EPSG:25832 explicitly instead of guessing coordinate fields?

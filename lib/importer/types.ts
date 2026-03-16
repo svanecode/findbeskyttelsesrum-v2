@@ -79,6 +79,7 @@ export type ImporterRunSummary = {
   sourceName: string;
   snapshotName: string;
   dryRun: boolean;
+  resumedFromImportRunId: string | null;
   recordsSeen: number;
   inserted: number;
   updated: number;
@@ -87,6 +88,11 @@ export type ImporterRunSummary = {
   missing: number;
   recordsUpserted: number;
   importRunId: string | null;
+  pagesFetched: number;
+  lastSuccessfulPage: number;
+  lastSuccessfulCursor: string | null;
+  missingTransitionsApplied: boolean;
+  missingTransitionsSkippedReason: string | null;
   warningsCount: number;
   warningExamples: string[];
   fetchStats: ImporterFetchStats;

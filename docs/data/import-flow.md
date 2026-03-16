@@ -32,6 +32,7 @@ Track how official baseline data enters the system, how admin corrections stay s
   - `npm run importer:datafordeler`
   - `npm run importer:datafordeler -- --dry-run`
   - `npm run importer:datafordeler -- --dry-run --max-pages 25`
+  - `npm run importer:datafordeler -- --resume-latest`
 - The skeleton currently proves:
   - canonical source identity matching
   - importer-owned field upserts
@@ -42,6 +43,7 @@ Track how official baseline data enters the system, how admin corrections stay s
   - dry-run validation of live-source fetch and normalization without Supabase writes
   - a capped live dry-run can now complete end-to-end with the current DAR query shape
   - a capped live dry-run can now complete end-to-end with coordinates included when BBR returns valid WKT
+  - long-running real runs can now checkpoint and resume from the last successful BBR page
 
 ## Required Future Flow
 1. Match by canonical official source identity first.
@@ -62,3 +64,5 @@ Track how official baseline data enters the system, how admin corrections stay s
 - Manual overrides should update only the separate override record; imported shelter values remain traceable and unchanged.
 - The full gatherer contract lives in `docs/data/import-contract.md`.
 - The current skeleton implementation is documented in `docs/data/importer-implementation.md`.
+- Missing/deactivation logic must only run after a fully successful non-resumed import with adequate coverage relative to the previous active shelter count.
+- Non-JSON Datafordeler responses should be treated as operational upstream failures with bounded retries and useful diagnostics, not as generic parse errors.

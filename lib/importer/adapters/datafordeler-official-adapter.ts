@@ -604,11 +604,11 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
 
   private async fetchAllBbrBuildings(
     warnings: ImporterWarning[],
-    snapshot: { maxPages?: number },
+    snapshot: ImporterSnapshot,
   ) {
     const nodes: BbrBuildingNode[] = [];
-    let after: string | null = null;
-    let page = 1;
+    let after: string | null = snapshot.resumeCursor ?? null;
+    let page = (snapshot.resumePage ?? 0) + 1;
     const hasMunicipalityFilter = this.config.municipalityCodes.length > 0;
     const hasUsageCodeFilter = this.config.shelterUsageCodes.size > 0;
     const query = buildFetchBbrBuildingsQuery({
@@ -645,6 +645,13 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       }
 
       nodes.push(...payload.BBR_Bygning.edges.map((edge) => edge.node));
+      const nextCursor = payload.BBR_Bygning.pageInfo.endCursor ?? null;
+
+      await snapshot.onPageFetched?.({
+        cursor: nextCursor,
+        pagesFetched: page,
+        fetchedRecords: nodes.length,
+      });
 
       if (payload.BBR_Bygning.edges.length === 0) {
         warnings.push({
@@ -667,7 +674,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         break;
       }
 
-      after = payload.BBR_Bygning.pageInfo.endCursor;
+      after = nextCursor;
       page += 1;
     }
 

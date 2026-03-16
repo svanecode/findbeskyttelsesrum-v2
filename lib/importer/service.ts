@@ -29,6 +29,9 @@ type ShelterRow = {
 
 type ImportRunRow = {
   id: string;
+  pages_fetched: number;
+  last_successful_page: number | null;
+  last_successful_cursor: string | null;
 };
 
 type ImportCounters = {
@@ -38,6 +41,14 @@ type ImportCounters = {
   restored: number;
   missing: number;
 };
+
+type MissingTransitionDecision = {
+  shouldApply: boolean;
+  reason: string | null;
+};
+
+const missingTransitionCoverageThreshold = 0.8;
+const missingTransitionMinimumSeenFloor = 25;
 
 function buildCompatibilitySourceSummary(record: ImportedShelterRecord) {
   return `Imported from ${record.source.sourceName} and shown with official source references.`;
@@ -113,16 +124,21 @@ function getWarningExamples(warnings: Array<{ code: string; message: string; ref
   });
 }
 
-async function createImportRun(sourceName: string, sourceUrl: string | null) {
+async function createImportRun(input: {
+  sourceName: string;
+  sourceUrl: string | null;
+  resumedFromImportRunId?: string | null;
+}) {
   const supabase = createAppV2AdminClient();
   const { data, error } = await supabase
     .from("import_runs")
     .insert({
-      source_name: sourceName,
-      source_url: sourceUrl,
+      source_name: input.sourceName,
+      source_url: input.sourceUrl,
       status: "running",
+      resumed_from_import_run_id: input.resumedFromImportRunId ?? null,
     })
-    .select("id")
+    .select("id, pages_fetched, last_successful_page, last_successful_cursor")
     .single();
 
   if (error || !data) {
@@ -139,6 +155,11 @@ async function updateImportRun(
     recordsSeen: number;
     recordsUpserted: number;
     errorSummary?: string;
+    pagesFetched?: number;
+    lastSuccessfulPage?: number | null;
+    lastSuccessfulCursor?: string | null;
+    missingTransitionsApplied?: boolean;
+    missingTransitionsSkippedReason?: string | null;
   },
 ) {
   const supabase = createAppV2AdminClient();
@@ -151,8 +172,37 @@ async function updateImportRun(
       records_upserted: payload.recordsUpserted,
       finished_at: new Date().toISOString(),
       error_summary: payload.errorSummary ?? null,
+      pages_fetched: payload.pagesFetched,
+      last_successful_page: payload.lastSuccessfulPage,
+      last_successful_cursor: payload.lastSuccessfulCursor,
+      missing_transitions_applied: payload.missingTransitionsApplied,
+      missing_transitions_skipped_reason: payload.missingTransitionsSkippedReason ?? null,
     })
     .eq("id", importRunId);
+}
+
+async function checkpointImportRun(
+  importRunId: string,
+  payload: {
+    pagesFetched: number;
+    lastSuccessfulPage: number;
+    lastSuccessfulCursor: string | null;
+  },
+) {
+  const supabase = createAppV2AdminClient();
+
+  const { error } = await supabase
+    .from("import_runs")
+    .update({
+      pages_fetched: payload.pagesFetched,
+      last_successful_page: payload.lastSuccessfulPage,
+      last_successful_cursor: payload.lastSuccessfulCursor,
+    })
+    .eq("id", importRunId);
+
+  if (error) {
+    throw new Error(`Could not checkpoint import run "${importRunId}".`);
+  }
 }
 
 async function insertAuditEvent(input: {
@@ -360,6 +410,77 @@ async function upsertShelterBaseline(input: {
   return updateResponse.data as ShelterRow;
 }
 
+async function getLatestFailedImportRun(sourceName: string) {
+  const supabase = createAppV2AdminClient();
+  const { data, error } = await supabase
+    .from("import_runs")
+    .select("id, pages_fetched, last_successful_page, last_successful_cursor")
+    .eq("source_name", sourceName)
+    .eq("status", "failed")
+    .not("last_successful_page", "is", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error("Could not load the latest failed import run for resume.");
+  }
+
+  return data as ImportRunRow | null;
+}
+
+async function getCurrentActiveShelterCount(canonicalSourceName: string) {
+  const supabase = createAppV2AdminClient();
+  const { count, error } = await supabase
+    .from("shelters")
+    .select("id", { count: "exact", head: true })
+    .eq("canonical_source_name", canonicalSourceName)
+    .eq("import_state", "active");
+
+  if (error) {
+    throw new Error("Could not load the current active shelter count for missing-record guardrails.");
+  }
+
+  return count ?? 0;
+}
+
+function decideMissingTransitions(input: {
+  resumedFromImportRunId: string | null;
+  previousActiveCount: number;
+  currentSeenCount: number;
+}) {
+  if (input.resumedFromImportRunId) {
+    return {
+      shouldApply: false,
+      reason: `resume guard: skipped missing transitions because the run resumed from import run ${input.resumedFromImportRunId}.`,
+    } satisfies MissingTransitionDecision;
+  }
+
+  if (input.previousActiveCount <= 0) {
+    return {
+      shouldApply: true,
+      reason: null,
+    } satisfies MissingTransitionDecision;
+  }
+
+  const requiredSeenCount = Math.max(
+    missingTransitionMinimumSeenFloor,
+    Math.ceil(input.previousActiveCount * missingTransitionCoverageThreshold),
+  );
+
+  if (input.currentSeenCount < requiredSeenCount) {
+    return {
+      shouldApply: false,
+      reason: `coverage guard: saw ${input.currentSeenCount} records, below required threshold ${requiredSeenCount} from previous active count ${input.previousActiveCount}.`,
+    } satisfies MissingTransitionDecision;
+  }
+
+  return {
+    shouldApply: true,
+    reason: null,
+  } satisfies MissingTransitionDecision;
+}
+
 async function markMissingShelters(input: {
   canonicalSourceName: string;
   seenReferences: Set<string>;
@@ -420,11 +541,33 @@ export async function runOfficialImporter(input: {
   adapter: OfficialSourceAdapter;
   snapshot: ImporterSnapshot;
   dryRun?: boolean;
+  resumeLatest?: boolean;
 }): Promise<ImporterRunSummary> {
   const actorIdentifier = `importer:${input.adapter.sourceName}`;
+  const resumableImportRun =
+    input.resumeLatest ? await getLatestFailedImportRun(input.adapter.sourceName) : null;
+  const effectiveSnapshot: ImporterSnapshot =
+    input.resumeLatest && resumableImportRun
+      ? {
+          ...input.snapshot,
+          resumeCursor: resumableImportRun.last_successful_cursor,
+          resumePage: resumableImportRun.last_successful_page ?? 0,
+        }
+      : input.snapshot;
 
   if (input.dryRun) {
-    const fetchResult = await input.adapter.fetchRecords(input.snapshot);
+    let pagesFetched = effectiveSnapshot.resumePage ?? 0;
+    let lastSuccessfulPage = effectiveSnapshot.resumePage ?? 0;
+    let lastSuccessfulCursor = effectiveSnapshot.resumeCursor ?? null;
+    const fetchResult = await input.adapter.fetchRecords({
+      ...effectiveSnapshot,
+      onPageFetched: async (progress) => {
+        pagesFetched = progress.pagesFetched;
+        lastSuccessfulPage = progress.pagesFetched;
+        lastSuccessfulCursor = progress.cursor;
+        await effectiveSnapshot.onPageFetched?.(progress);
+      },
+    });
     const records = fetchResult.records;
 
     assertUniqueCanonicalRecords(records);
@@ -432,8 +575,9 @@ export async function runOfficialImporter(input: {
 
     return {
       sourceName: input.adapter.sourceName,
-      snapshotName: input.snapshot.name,
+      snapshotName: effectiveSnapshot.name,
       dryRun: true,
+      resumedFromImportRunId: resumableImportRun?.id ?? null,
       recordsSeen: records.length,
       inserted: 0,
       updated: 0,
@@ -442,17 +586,43 @@ export async function runOfficialImporter(input: {
       missing: 0,
       recordsUpserted: 0,
       importRunId: null,
+      pagesFetched,
+      lastSuccessfulPage,
+      lastSuccessfulCursor,
+      missingTransitionsApplied: false,
+      missingTransitionsSkippedReason: "dry-run never applies missing transitions.",
       warningsCount: fetchResult.warnings.length,
       warningExamples: getWarningExamples(fetchResult.warnings),
       fetchStats: fetchResult.stats,
     };
   }
 
-  const importRun = await createImportRun(input.adapter.sourceName, input.adapter.sourceUrl);
+  const importRun = await createImportRun({
+    sourceName: input.adapter.sourceName,
+    sourceUrl: input.adapter.sourceUrl,
+    resumedFromImportRunId: resumableImportRun?.id ?? null,
+  });
   const importTimestamp = new Date().toISOString();
+  const activeCountBeforeRun = await getCurrentActiveShelterCount(input.adapter.sourceName);
+  let pagesFetched = effectiveSnapshot.resumePage ?? 0;
+  let lastSuccessfulPage = effectiveSnapshot.resumePage ?? 0;
+  let lastSuccessfulCursor = effectiveSnapshot.resumeCursor ?? null;
 
   try {
-    const fetchResult = await input.adapter.fetchRecords(input.snapshot);
+    const fetchResult = await input.adapter.fetchRecords({
+      ...effectiveSnapshot,
+      onPageFetched: async (progress) => {
+        pagesFetched = progress.pagesFetched;
+        lastSuccessfulPage = progress.pagesFetched;
+        lastSuccessfulCursor = progress.cursor;
+        await checkpointImportRun(importRun.id, {
+          pagesFetched,
+          lastSuccessfulPage,
+          lastSuccessfulCursor,
+        });
+        await effectiveSnapshot.onPageFetched?.(progress);
+      },
+    });
     const records = fetchResult.records;
 
     assertUniqueCanonicalRecords(records);
@@ -486,12 +656,20 @@ export async function runOfficialImporter(input: {
       });
     }
 
-    counters.missing = await markMissingShelters({
-      canonicalSourceName: input.adapter.sourceName,
-      seenReferences,
-      importTimestamp,
-      actorIdentifier,
+    const missingTransitionDecision = decideMissingTransitions({
+      resumedFromImportRunId: resumableImportRun?.id ?? null,
+      previousActiveCount: activeCountBeforeRun,
+      currentSeenCount: records.length,
     });
+
+    if (missingTransitionDecision.shouldApply) {
+      counters.missing = await markMissingShelters({
+        canonicalSourceName: input.adapter.sourceName,
+        seenReferences,
+        importTimestamp,
+        actorIdentifier,
+      });
+    }
 
     const recordsUpserted = counters.inserted + counters.updated + counters.restored;
 
@@ -499,6 +677,11 @@ export async function runOfficialImporter(input: {
       status: "succeeded",
       recordsSeen: records.length,
       recordsUpserted,
+      pagesFetched,
+      lastSuccessfulPage,
+      lastSuccessfulCursor,
+      missingTransitionsApplied: missingTransitionDecision.shouldApply,
+      missingTransitionsSkippedReason: missingTransitionDecision.reason,
     });
 
     if (recordsUpserted > 0 || counters.missing > 0) {
@@ -509,21 +692,26 @@ export async function runOfficialImporter(input: {
         eventType: "import_run_applied",
         payload: {
           source_name: input.adapter.sourceName,
-          snapshot_name: input.snapshot.name,
+          snapshot_name: effectiveSnapshot.name,
           records_seen: records.length,
           inserted: counters.inserted,
           updated: counters.updated,
           unchanged: counters.unchanged,
           restored: counters.restored,
           missing: counters.missing,
+          pages_fetched: pagesFetched,
+          resumed_from_import_run_id: resumableImportRun?.id ?? null,
+          missing_transitions_applied: missingTransitionDecision.shouldApply,
+          missing_transitions_skipped_reason: missingTransitionDecision.reason,
         },
       });
     }
 
     return {
       sourceName: input.adapter.sourceName,
-      snapshotName: input.snapshot.name,
+      snapshotName: effectiveSnapshot.name,
       dryRun: false,
+      resumedFromImportRunId: resumableImportRun?.id ?? null,
       recordsSeen: records.length,
       inserted: counters.inserted,
       updated: counters.updated,
@@ -532,6 +720,11 @@ export async function runOfficialImporter(input: {
       missing: counters.missing,
       recordsUpserted,
       importRunId: importRun.id,
+      pagesFetched,
+      lastSuccessfulPage,
+      lastSuccessfulCursor,
+      missingTransitionsApplied: missingTransitionDecision.shouldApply,
+      missingTransitionsSkippedReason: missingTransitionDecision.reason,
       warningsCount: fetchResult.warnings.length,
       warningExamples: getWarningExamples(fetchResult.warnings),
       fetchStats: fetchResult.stats,
@@ -544,6 +737,11 @@ export async function runOfficialImporter(input: {
       recordsSeen: 0,
       recordsUpserted: 0,
       errorSummary,
+      pagesFetched,
+      lastSuccessfulPage,
+      lastSuccessfulCursor,
+      missingTransitionsApplied: false,
+      missingTransitionsSkippedReason: "run failed before successful completion.",
     });
 
     await insertAuditEvent({
@@ -553,8 +751,11 @@ export async function runOfficialImporter(input: {
       eventType: "import_run_failed",
       payload: {
         source_name: input.adapter.sourceName,
-        snapshot_name: input.snapshot.name,
+        snapshot_name: effectiveSnapshot.name,
         error_summary: errorSummary,
+        pages_fetched: pagesFetched,
+        last_successful_page: lastSuccessfulPage,
+        resumed_from_import_run_id: resumableImportRun?.id ?? null,
       },
     });
 

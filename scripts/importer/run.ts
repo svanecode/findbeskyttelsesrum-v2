@@ -11,6 +11,10 @@ function isDryRun() {
   return process.argv.includes("--dry-run");
 }
 
+function shouldResumeLatest() {
+  return process.argv.includes("--resume-latest");
+}
+
 function getMaxPages() {
   const flagIndex = process.argv.findIndex((value) => value === "--max-pages");
 
@@ -45,9 +49,10 @@ async function main() {
   const snapshotName = mode === "datafordeler" ? "live" : getFixtureSnapshotName();
   const dryRun = isDryRun();
   const maxPages = getMaxPages();
+  const resumeLatest = shouldResumeLatest();
 
   console.log(
-    `[importer] mode=${mode} source=${adapter.sourceName} snapshot=${snapshotName} dryRun=${dryRun} maxPages=${maxPages ?? "none"}`,
+    `[importer] mode=${mode} source=${adapter.sourceName} snapshot=${snapshotName} dryRun=${dryRun} maxPages=${maxPages ?? "none"} resumeLatest=${resumeLatest}`,
   );
   const summary = await runOfficialImporter({
     adapter,
@@ -56,13 +61,17 @@ async function main() {
       maxPages,
     },
     dryRun,
+    resumeLatest,
   });
 
   console.log(
-    `[importer] summary recordsSeen=${summary.recordsSeen} inserted=${summary.inserted} updated=${summary.updated} unchanged=${summary.unchanged} restored=${summary.restored} missing=${summary.missing} warnings=${summary.warningsCount}`,
+    `[importer] summary recordsSeen=${summary.recordsSeen} inserted=${summary.inserted} updated=${summary.updated} unchanged=${summary.unchanged} restored=${summary.restored} missing=${summary.missing} warnings=${summary.warningsCount} pagesFetched=${summary.pagesFetched} resumedFrom=${summary.resumedFromImportRunId ?? "none"}`,
   );
   console.log(
     `[importer] fetchStats fetched=${summary.fetchStats.fetchedRecords} capacityAccepted=${summary.fetchStats.acceptedAfterCapacityFilter} normalized=${summary.fetchStats.normalizedRecords} skipped=${summary.fetchStats.skippedRecords} missingOrNonPositiveCapacity=${summary.fetchStats.missingOrNonPositiveCapacityCount} missingAddress=${summary.fetchStats.missingAddressCount} missingMunicipality=${summary.fetchStats.missingMunicipalityCount} acceptedWithCoordinates=${summary.fetchStats.acceptedWithCoordinatesCount} acceptedWithoutCoordinates=${summary.fetchStats.acceptedWithoutCoordinatesCount} missingCoordinates=${summary.fetchStats.missingCoordinatesCount} coordinateParseFailures=${summary.fetchStats.coordinateParseFailureCount}`,
+  );
+  console.log(
+    `[importer] lifecycle missingTransitionsApplied=${summary.missingTransitionsApplied} missingTransitionsSkippedReason=${summary.missingTransitionsSkippedReason ?? "none"} lastSuccessfulPage=${summary.lastSuccessfulPage} lastSuccessfulCursor=${summary.lastSuccessfulCursor ?? "none"}`,
   );
 
   if (summary.fetchStats.skipReasonCounts.length > 0) {

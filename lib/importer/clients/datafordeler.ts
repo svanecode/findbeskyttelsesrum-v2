@@ -5,8 +5,8 @@ type DatafordelerClientOptions = {
 };
 
 const retryableStatusCodes = new Set([429, 500, 502, 503, 504]);
-const maxRequestAttempts = 3;
-const baseRetryDelayMs = 500;
+const maxRequestAttempts = 4;
+const baseRetryDelayMs = 1000;
 
 type GraphqlResponse<T> = {
   data?: T;
@@ -14,6 +14,55 @@ type GraphqlResponse<T> = {
     message?: string;
   }>;
 };
+
+class DatafordelerRequestError extends Error {
+  readonly retryable: boolean;
+  readonly status: number | null;
+  readonly contentType: string | null;
+  readonly bodyPreview: string | null;
+
+  constructor(input: {
+    message: string;
+    retryable: boolean;
+    status?: number | null;
+    contentType?: string | null;
+    bodyPreview?: string | null;
+  }) {
+    super(input.message);
+    this.name = "DatafordelerRequestError";
+    this.retryable = input.retryable;
+    this.status = input.status ?? null;
+    this.contentType = input.contentType ?? null;
+    this.bodyPreview = input.bodyPreview ?? null;
+  }
+}
+
+function toSafeBodyPreview(value: string) {
+  const collapsed = value.replace(/\s+/g, " ").trim();
+
+  if (!collapsed) {
+    return null;
+  }
+
+  return collapsed.slice(0, 240);
+}
+
+function looksLikeTransientProxyBody(value: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = value.toLowerCase();
+
+  return (
+    normalized.includes("<html") ||
+    normalized.includes("upstream") ||
+    normalized.includes("gateway") ||
+    normalized.includes("proxy error") ||
+    normalized.includes("temporarily unavailable") ||
+    normalized.includes("service unavailable")
+  );
+}
 
 export class DatafordelerGraphqlClient {
   private readonly endpoint: string;
@@ -31,6 +80,38 @@ export class DatafordelerGraphqlClient {
     const delayMs = baseRetryDelayMs * 2 ** (attempt - 1) + jitterMs;
 
     await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  private async buildResponseError(input: {
+    operationName: string;
+    response: Response;
+    expectJson: boolean;
+  }) {
+    const contentType = input.response.headers.get("content-type");
+    const responseText = await input.response.text();
+    const bodyPreview = toSafeBodyPreview(responseText);
+    const isJsonResponse = contentType?.toLowerCase().includes("application/json") ?? false;
+    const retryable =
+      retryableStatusCodes.has(input.response.status) ||
+      (!isJsonResponse && looksLikeTransientProxyBody(bodyPreview));
+
+    if (!input.expectJson) {
+      return new DatafordelerRequestError({
+        message: `Datafordeler request for ${input.operationName} failed with ${input.response.status} ${input.response.statusText}${contentType ? ` (content-type: ${contentType})` : ""}${bodyPreview ? `. Body preview: ${bodyPreview}` : ""}.`,
+        retryable,
+        status: input.response.status,
+        contentType,
+        bodyPreview,
+      });
+    }
+
+    return new DatafordelerRequestError({
+      message: `Datafordeler response for ${input.operationName} was not valid JSON${input.response.status ? ` (status ${input.response.status})` : ""}${contentType ? ` (content-type: ${contentType})` : ""}${bodyPreview ? `. Body preview: ${bodyPreview}` : ""}.`,
+      retryable,
+      status: input.response.status,
+      contentType,
+      bodyPreview,
+    });
   }
 
   async query<TData, TVariables extends Record<string, unknown>>(input: {
@@ -64,25 +145,48 @@ export class DatafordelerGraphqlClient {
         });
 
         if (!response.ok) {
-          if (retryableStatusCodes.has(response.status) && attempt < maxRequestAttempts) {
+          const responseError = await this.buildResponseError({
+            operationName: input.operationName,
+            response,
+            expectJson: false,
+          });
+
+          if (responseError.retryable && attempt < maxRequestAttempts) {
             console.warn(
-              `[importer] datafordeler: retrying ${input.operationName} after ${response.status} ${response.statusText} (attempt ${attempt + 1}/${maxRequestAttempts})`,
+              `[importer] datafordeler: retrying ${input.operationName} after ${responseError.status ?? "unknown"} response (attempt ${attempt + 1}/${maxRequestAttempts})`,
             );
             await this.waitBeforeRetry(attempt);
             continue;
           }
 
-          throw new Error(
-            `Datafordeler request for ${input.operationName} failed with ${response.status} ${response.statusText}.`,
-          );
+          throw responseError;
         }
 
+        const responseText = await response.text();
         let payload: GraphqlResponse<TData>;
 
         try {
-          payload = (await response.json()) as GraphqlResponse<TData>;
+          payload = JSON.parse(responseText) as GraphqlResponse<TData>;
         } catch {
-          throw new Error(`Datafordeler response for ${input.operationName} was not valid JSON.`);
+          const responseError = await this.buildResponseError({
+            operationName: input.operationName,
+            response: new Response(responseText, {
+              status: response.status,
+              statusText: response.statusText,
+              headers: response.headers,
+            }),
+            expectJson: true,
+          });
+
+          if (responseError.retryable && attempt < maxRequestAttempts) {
+            console.warn(
+              `[importer] datafordeler: retrying ${input.operationName} after non-JSON response (attempt ${attempt + 1}/${maxRequestAttempts})`,
+            );
+            await this.waitBeforeRetry(attempt);
+            continue;
+          }
+
+          throw responseError;
         }
 
         if (payload.errors && payload.errors.length > 0) {
@@ -112,6 +216,10 @@ export class DatafordelerGraphqlClient {
           throw new Error(
             `Datafordeler request for ${input.operationName} timed out after ${this.requestTimeoutMs}ms.`,
           );
+        }
+
+        if (error instanceof DatafordelerRequestError) {
+          throw error;
         }
 
         if (error instanceof TypeError) {

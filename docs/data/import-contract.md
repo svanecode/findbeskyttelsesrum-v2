@@ -52,6 +52,18 @@ For every gatherer execution, create one `import_runs` row with at least:
 - `finished_at`
 - `error_summary`
   - Only on failure or partial failure.
+- `pages_fetched`
+  - Count of successfully fetched BBR pages checkpointed during the run.
+- `last_successful_page`
+  - Last BBR page confirmed complete.
+- `last_successful_cursor`
+  - Cursor that can resume the next BBR page safely.
+- `resumed_from_import_run_id`
+  - Optional reference when a later run resumes a failed one.
+- `missing_transitions_applied`
+  - Whether this run was allowed to mark prior records missing.
+- `missing_transitions_skipped_reason`
+  - Guardrail explanation when missing transitions were intentionally skipped.
 
 ### 2. Municipality Baseline
 Importer must ensure municipality records exist before shelter upserts:
@@ -172,8 +184,14 @@ If no shelter exists for the official source identity:
 ### Missing Record
 If a previously imported official record is not seen in the latest run:
 - do not hard-delete immediately
-- mark the shelter baseline as no longer current through a dedicated lifecycle field in a future schema change
+- mark the shelter baseline `import_state = 'missing_from_source'`
 - keep override and audit history intact
+- only apply this transition after a fully successful non-resumed run with adequate coverage
+
+Coverage guard:
+- if there were no previously active shelters for the source, apply normally
+- otherwise require `records_seen >= max(25, ceil(previous_active_count * 0.8))`
+- if the guard fails, complete the run without any missing transitions and record the reason
 
 ## Deletion And Restore Contract
 
@@ -220,16 +238,19 @@ Create `audit_events` for:
 - import run succeeded with material changes
 - importer marked a shelter record missing from source
 - importer restored a previously missing shelter record
+- importer resumed from a failed checkpoint if that materially changes run behavior
 
 Do not create `audit_events` for:
 - every unchanged shelter touched in a normal successful run
 
-## Minimum Future Schema Support Needed
-- `shelters.import_state`
-- `shelters.last_seen_at`
-- `shelters.last_imported_at`
-- `shelters.canonical_source_name`
-- `shelters.canonical_source_reference`
-- `shelter_overrides`
-
-The gatherer implementation should follow this contract even if some parts require a small schema evolution first.
+## Upstream Failure Handling
+- Datafordeler responses that are not valid JSON must surface:
+  - HTTP status
+  - content type when present
+  - a short safe body preview
+- retry only within bounded limits and only for transient failures such as:
+  - timeout
+  - `429`
+  - `5xx`
+  - transient non-JSON upstream/proxy responses
+- partial failed runs must never trigger broad missing/deactivation effects
