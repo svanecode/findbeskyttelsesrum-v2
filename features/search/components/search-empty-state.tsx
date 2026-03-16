@@ -1,8 +1,7 @@
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
 
 export function SearchEmptyState() {
   return (
@@ -21,12 +20,12 @@ export function SearchEmptyState() {
           by distance.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button render={<Link href="/find?q=Copenhagen" />} variant="outline">
+          <Link className={buttonVariants({ variant: "outline" })} href="/find?q=Copenhagen">
             Try Copenhagen
-          </Button>
-          <Button render={<Link href="/kommune/kobenhavn" />} variant="ghost">
+          </Link>
+          <Link className={buttonVariants({ variant: "ghost" })} href="/kommune/kobenhavn">
             Browse Copenhagen municipality
-          </Button>
+          </Link>
         </div>
       </CardContent>
     </Card>

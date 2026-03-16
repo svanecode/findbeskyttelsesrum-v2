@@ -24,15 +24,19 @@ Track how official baseline data enters the system, how admin corrections stay s
 - The app now assumes `app_v2` may start sparse or partially populated and uses fallback public copy when imported summaries or source summaries are still blank.
 - The default Datafordeler scope is now nationwide; BBR `status = 6` is the primary official inclusion rule.
 - BBR `status = 6` alone was too broad in live validation, so positive `byg069Sikringsrumpladser` is now also required before a record is accepted into the normalized importer output.
+- Municipality metadata now comes from a bundled Denmark-wide municipality map keyed by BBR `kommunekode`, with env overrides still able to replace individual entries when needed.
+- Municipality fallback warnings are now deduplicated to one warning per unknown municipality code per run instead of one warning per accepted shelter row.
 - DAR enrichment now uses a valid three-step lookup: `DAR_Husnummer` for relation ids and house-number text, then `DAR_NavngivenVej` and `DAR_Postnummer` for road name and postal metadata.
 - DAR relation-id lookups are now hard-capped at `100` ids per `in` query because larger live Datafordeler lists can fail with `400 Bad Request`.
 - BBR coordinates now use the confirmed live field shape `byg404Koordinat.wkt` and are converted from EPSG:25832 WKT points into WGS84 latitude/longitude.
 - Optional municipality and usage-code env vars can still narrow a run for debugging or phased validation, but they are no longer required for normal execution.
+- `app_v2.import_runs` checkpoint writes now retry bounded transient failures and surface the real PostgREST status/details when they fail.
 - CLI entry points:
   - `npm run importer:fixture -- <snapshot>`
   - `npm run importer:datafordeler`
   - `npm run importer:datafordeler -- --dry-run`
   - `npm run importer:datafordeler -- --dry-run --max-pages 25`
+  - `npm run importer:datafordeler -- --max-pages 25`
   - `npm run importer:datafordeler -- --resume-latest`
 - The skeleton currently proves:
   - canonical source identity matching
@@ -44,6 +48,7 @@ Track how official baseline data enters the system, how admin corrections stay s
   - dry-run validation of live-source fetch and normalization without Supabase writes
   - a capped live dry-run can now complete end-to-end with the current DAR query shape
   - a capped live dry-run can now complete end-to-end with coordinates included when BBR returns valid WKT
+  - a capped real run can now validate checkpoint writes against `app_v2.import_runs` without attempting a full nationwide pass
   - long-running real runs can now checkpoint and resume from the last successful BBR page
 
 ## Required Future Flow
@@ -68,3 +73,4 @@ Track how official baseline data enters the system, how admin corrections stay s
 - Missing/deactivation logic must only run after a fully successful non-resumed import with adequate coverage relative to the previous active shelter count.
 - Non-JSON Datafordeler responses should be treated as operational upstream failures with bounded retries and useful diagnostics, not as generic parse errors.
 - Oversized DAR relation-id batches can make a run look superficially successful while normalizing almost no shelters; batch-size limits are therefore part of importer correctness, not just performance tuning.
+- A single transient checkpoint-write failure should not stay opaque; `app_v2.import_runs` writes must emit the real table/operation/status context and retry bounded transient failures before the run aborts.

@@ -1,6 +1,10 @@
 import { cache } from "react";
 
 import { calculateDistanceKm } from "@/lib/location/distance";
+import {
+  getMunicipalitySlugCandidates,
+  normalizeMunicipalityDisplay,
+} from "@/lib/municipalities/metadata";
 import { createAppV2AdminClient, createAppV2ServerClient } from "@/lib/supabase/app-v2";
 import { formatOverrideStatusLabel, type OverrideStatus, type ShelterOverrideValues } from "@/lib/shelter/overrides";
 
@@ -344,10 +348,31 @@ function normalizeText(value: string | null | undefined) {
 function mapMunicipality(row: MunicipalityRelation | undefined): MunicipalityRow {
   const municipality = Array.isArray(row) ? row[0] : row;
 
-  return {
+  return normalizeMunicipalityDisplay({
     id: municipality?.id ?? "unknown",
-    slug: municipality?.slug ?? "unknown",
-    name: municipality?.name ?? "Unknown municipality",
+    slug: municipality?.slug,
+    name: municipality?.name,
+  });
+}
+
+async function getMunicipalityByAnyKnownSlug(
+  supabase: Awaited<ReturnType<typeof createAppV2ReadClient>>,
+  slug: string,
+) {
+  const candidates = getMunicipalitySlugCandidates(slug);
+  const { data, error } = await supabase
+    .from("municipalities")
+    .select("id, slug, name, description")
+    .in("slug", candidates);
+
+  if (error || !data || data.length === 0) {
+    return null;
+  }
+
+  const exactMatch = data.find((row) => row.slug === slug);
+
+  return (exactMatch ?? data[0]) as MunicipalityRow & {
+    description: string | null;
   };
 }
 
@@ -697,20 +722,12 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
 
 export const getMunicipalityBySlug = cache(async (slug: string): Promise<MunicipalityDetail | null> => {
   const supabase = await createAppV2ReadClient();
+  const municipality = await getMunicipalityByAnyKnownSlug(supabase, slug);
 
-  const municipalityResponse = await supabase
-    .from("municipalities")
-    .select("id, slug, name, description")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  if (municipalityResponse.error || !municipalityResponse.data) {
+  if (!municipality) {
     return null;
   }
-
-  const municipality = municipalityResponse.data as MunicipalityRow & {
-    description: string | null;
-  };
+  const displayMunicipality = normalizeMunicipalityDisplay(municipality);
 
   const sheltersResponse = await supabase
     .from("shelters")
@@ -731,8 +748,8 @@ export const getMunicipalityBySlug = cache(async (slug: string): Promise<Municip
     const primarySource = getPrimarySource(shelter.shelter_sources);
     const municipalityRow = {
       id: municipality.id,
-      slug: municipality.slug,
-      name: municipality.name,
+      slug: displayMunicipality.slug,
+      name: displayMunicipality.name,
     };
 
     return {
@@ -753,8 +770,8 @@ export const getMunicipalityBySlug = cache(async (slug: string): Promise<Municip
 
   return {
     id: municipality.id,
-    slug: municipality.slug,
-    name: municipality.name,
+    slug: displayMunicipality.slug,
+    name: displayMunicipality.name,
     description: municipality.description,
     shelterCount: shelters.length,
     hasShelters: shelters.length > 0,
@@ -789,15 +806,12 @@ export async function searchShelters(input: {
   let isMunicipalityFilterInvalid = false;
 
   if (input.municipalitySlug) {
-    const municipalityResponse = await supabase
-      .from("municipalities")
-      .select("id, slug, name")
-      .eq("slug", input.municipalitySlug)
-      .maybeSingle();
+    const municipality = await getMunicipalityByAnyKnownSlug(supabase, input.municipalitySlug);
 
-    if (municipalityResponse.data) {
-      municipalityId = municipalityResponse.data.id;
-      municipalityName = municipalityResponse.data.name;
+    if (municipality) {
+      const displayMunicipality = normalizeMunicipalityDisplay(municipality);
+      municipalityId = municipality.id;
+      municipalityName = displayMunicipality.name;
     } else {
       isMunicipalityFilterInvalid = true;
     }
@@ -948,7 +962,7 @@ export async function getAdminShelterReports(): Promise<AdminShelterReport[]> {
     const { data, error } = await supabase
       .from("shelter_reports")
       .select(
-        "id, report_type, message, contact_email, status, created_at, shelters(name, slug, municipalities(name))",
+        "id, report_type, message, contact_email, status, created_at, shelters(name, slug, municipalities(id, slug, name))",
       )
       .order("created_at", { ascending: false })
       .limit(100);
@@ -960,9 +974,7 @@ export async function getAdminShelterReports(): Promise<AdminShelterReport[]> {
     return data.map((report) => {
       const shelter = Array.isArray(report.shelters) ? report.shelters[0] : report.shelters;
       const municipality = shelter?.municipalities
-        ? Array.isArray(shelter.municipalities)
-          ? shelter.municipalities[0]
-          : shelter.municipalities
+        ? mapMunicipality(shelter.municipalities as MunicipalityRelation)
         : null;
 
       return {
@@ -991,7 +1003,7 @@ export async function getAdminShelterOverrideContext(
     const shelterResponse = await supabase
       .from("shelters")
       .select(
-        "id, slug, name, address_line1, postal_code, city, summary, capacity, status, accessibility_notes, municipalities(name)",
+        "id, slug, name, address_line1, postal_code, city, summary, capacity, status, accessibility_notes, municipalities(id, slug, name)",
       )
       .eq("slug", slug)
       .maybeSingle();
@@ -1000,9 +1012,7 @@ export async function getAdminShelterOverrideContext(
       return null;
     }
 
-    const shelter = shelterResponse.data as ShelterRow & {
-      municipalities?: { name: string } | { name: string }[] | null;
-    };
+    const shelter = shelterResponse.data as ShelterRow;
 
     const overrideResponse = await supabase
       .from("shelter_overrides")
@@ -1013,9 +1023,7 @@ export async function getAdminShelterOverrideContext(
       .eq("is_active", true)
       .maybeSingle();
 
-    const municipalityRelation = Array.isArray(shelter.municipalities)
-      ? shelter.municipalities[0]
-      : shelter.municipalities;
+    const municipality = mapMunicipality(shelter.municipalities);
     const activeOverride = (overrideResponse.data as ShelterOverrideRow | null) ?? null;
     const importedValues = {
       name: shelter.name,
@@ -1060,7 +1068,7 @@ export async function getAdminShelterOverrideContext(
       addressLine1: shelter.address_line1,
       postalCode: shelter.postal_code,
       city: shelter.city,
-      municipalityName: municipalityRelation?.name ?? "Unknown municipality",
+      municipalityName: municipality.name,
       hasActiveOverride: Boolean(activeOverride),
       activeOverrideReason: activeOverride?.reason ?? null,
       importedValues,

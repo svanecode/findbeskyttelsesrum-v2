@@ -6,6 +6,7 @@ import { PageShell } from "@/components/shared/page-shell";
 import { SectionHeading } from "@/components/shared/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdminShelterReport } from "@/lib/supabase/queries";
 
@@ -58,9 +59,9 @@ function ConfigurationNotice() {
 function ModerationToolbar({ email }: { email: string }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Button render={<Link href="/find" />} variant="outline">
+      <Link className={buttonVariants({ variant: "outline" })} href="/find">
         Back to search
-      </Button>
+      </Link>
       <span className="text-sm text-muted-foreground">Signed in as {email}</span>
       <form action={signOutAdmin}>
         <Button type="submit" variant="ghost">

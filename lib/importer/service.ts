@@ -49,6 +49,19 @@ type MissingTransitionDecision = {
 
 const missingTransitionCoverageThreshold = 0.8;
 const missingTransitionMinimumSeenFloor = 25;
+const importRunWriteRetryAttempts = 4;
+const importRunWriteRetryBaseDelayMs = 500;
+
+type ImportRunWriteOperation = "insert" | "update" | "checkpoint";
+
+type ImportRunWriteErrorInput = {
+  operation: ImportRunWriteOperation;
+  importRunId?: string;
+  payload: Record<string, unknown>;
+  error: unknown;
+  status?: number;
+  statusText?: string;
+};
 
 function buildCompatibilitySourceSummary(record: ImportedShelterRecord) {
   return `Imported from ${record.source.sourceName} and shown with official source references.`;
@@ -124,28 +137,165 @@ function getWarningExamples(warnings: Array<{ code: string; message: string; ref
   });
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function summarizeImportRunPayload(payload: Record<string, unknown>) {
+  return Object.entries(payload)
+    .map(([key, value]) => {
+      if (typeof value === "string") {
+        return `${key}=string(len:${value.length})`;
+      }
+
+      if (value === null) {
+        return `${key}=null`;
+      }
+
+      return `${key}=${typeof value}`;
+    })
+    .join(", ");
+}
+
+function isTransientImportRunWriteFailure(input: { status?: number; error: unknown }) {
+  if (input.status && [408, 409, 425, 429, 500, 502, 503, 504].includes(input.status)) {
+    return true;
+  }
+
+  const message =
+    input.error instanceof Error
+      ? input.error.message
+      : typeof input.error === "object" && input.error && "message" in input.error
+        ? String(input.error.message)
+        : "";
+
+  const lowerMessage = message.toLowerCase();
+
+  return (
+    lowerMessage.includes("fetch failed") ||
+    lowerMessage.includes("network") ||
+    lowerMessage.includes("timed out") ||
+    lowerMessage.includes("timeout") ||
+    lowerMessage.includes("gateway") ||
+    lowerMessage.includes("service unavailable") ||
+    lowerMessage.includes("rate limit")
+  );
+}
+
+function formatImportRunWriteFailure(input: ImportRunWriteErrorInput) {
+  const operationLabel =
+    input.operation === "insert"
+      ? "create"
+      : input.operation === "checkpoint"
+        ? "checkpoint"
+        : "update";
+
+  const details =
+    typeof input.error === "object" && input.error
+      ? {
+          code: "code" in input.error ? input.error.code : undefined,
+          message: "message" in input.error ? input.error.message : undefined,
+          details: "details" in input.error ? input.error.details : undefined,
+          hint: "hint" in input.error ? input.error.hint : undefined,
+        }
+      : {
+          message: input.error instanceof Error ? input.error.message : String(input.error),
+        };
+
+  const summary = [
+    `Could not ${operationLabel} import run${input.importRunId ? ` "${input.importRunId}"` : ""}.`,
+    `table=app_v2.import_runs`,
+    `operation=${input.operation}`,
+    input.status ? `status=${input.status}` : null,
+    input.statusText ? `statusText=${input.statusText}` : null,
+    `payload=${summarizeImportRunPayload(input.payload)}`,
+    `error=${JSON.stringify(details)}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return summary;
+}
+
+async function retryImportRunWrite<T>(
+  operation: ImportRunWriteOperation,
+  execute: () => PromiseLike<T>,
+  shouldRetry: (result: T) => boolean,
+  getFailureDetails: (result: T) => { error: unknown; status?: number; statusText?: string },
+) {
+  let attempt = 0;
+
+  while (attempt < importRunWriteRetryAttempts) {
+    const result = await execute();
+
+    if (!shouldRetry(result)) {
+      return result;
+    }
+
+    attempt += 1;
+    const failure = getFailureDetails(result);
+
+    if (
+      attempt >= importRunWriteRetryAttempts ||
+      !isTransientImportRunWriteFailure({
+        status: failure.status,
+        error: failure.error,
+      })
+    ) {
+      return result;
+    }
+
+    const delayMs = importRunWriteRetryBaseDelayMs * 2 ** (attempt - 1);
+    console.warn(
+      `[importer] retrying import run ${operation} after transient failure attempt=${attempt} status=${failure.status ?? "unknown"} statusText=${failure.statusText ?? "unknown"}`,
+    );
+    await sleep(delayMs);
+  }
+
+  return execute();
+}
+
 async function createImportRun(input: {
   sourceName: string;
   sourceUrl: string | null;
   resumedFromImportRunId?: string | null;
 }) {
   const supabase = createAppV2AdminClient();
-  const { data, error } = await supabase
-    .from("import_runs")
-    .insert({
-      source_name: input.sourceName,
-      source_url: input.sourceUrl,
-      status: "running",
-      resumed_from_import_run_id: input.resumedFromImportRunId ?? null,
-    })
-    .select("id, pages_fetched, last_successful_page, last_successful_cursor")
-    .single();
+  const payload = {
+    source_name: input.sourceName,
+    source_url: input.sourceUrl,
+    status: "running",
+    resumed_from_import_run_id: input.resumedFromImportRunId ?? null,
+  } satisfies Record<string, unknown>;
+  const result = await retryImportRunWrite(
+    "insert",
+    () =>
+      supabase
+        .from("import_runs")
+        .insert(payload)
+        .select("id, pages_fetched, last_successful_page, last_successful_cursor")
+        .single(),
+    (response) => Boolean(response.error || !response.data),
+    (response) => ({
+      error: response.error ?? new Error("Import run insert returned no row."),
+      status: response.status,
+      statusText: response.statusText,
+    }),
+  );
 
-  if (error || !data) {
-    throw new Error("Could not create import run.");
+  if (result.error || !result.data) {
+    throw new Error(
+      formatImportRunWriteFailure({
+        operation: "insert",
+        payload,
+        error: result.error ?? new Error("Import run insert returned no row."),
+        status: result.status,
+        statusText: result.statusText,
+      }),
+    );
   }
 
-  return data as ImportRunRow;
+  return result.data as ImportRunRow;
 }
 
 async function updateImportRun(
@@ -163,22 +313,51 @@ async function updateImportRun(
   },
 ) {
   const supabase = createAppV2AdminClient();
+  const updatePayload = {
+    status: payload.status,
+    records_seen: payload.recordsSeen,
+    records_upserted: payload.recordsUpserted,
+    finished_at: new Date().toISOString(),
+    error_summary: payload.errorSummary ?? null,
+    pages_fetched: payload.pagesFetched,
+    last_successful_page: payload.lastSuccessfulPage,
+    last_successful_cursor: payload.lastSuccessfulCursor,
+    missing_transitions_applied: payload.missingTransitionsApplied,
+    missing_transitions_skipped_reason: payload.missingTransitionsSkippedReason ?? null,
+  };
+  const normalizedPayload = Object.fromEntries(
+    Object.entries(updatePayload).filter(([, value]) => value !== undefined),
+  );
 
-  await supabase
-    .from("import_runs")
-    .update({
-      status: payload.status,
-      records_seen: payload.recordsSeen,
-      records_upserted: payload.recordsUpserted,
-      finished_at: new Date().toISOString(),
-      error_summary: payload.errorSummary ?? null,
-      pages_fetched: payload.pagesFetched,
-      last_successful_page: payload.lastSuccessfulPage,
-      last_successful_cursor: payload.lastSuccessfulCursor,
-      missing_transitions_applied: payload.missingTransitionsApplied,
-      missing_transitions_skipped_reason: payload.missingTransitionsSkippedReason ?? null,
-    })
-    .eq("id", importRunId);
+  const result = await retryImportRunWrite(
+    "update",
+    () =>
+      supabase
+        .from("import_runs")
+        .update(normalizedPayload)
+        .eq("id", importRunId)
+        .select("id")
+        .single(),
+    (response) => Boolean(response.error || !response.data),
+    (response) => ({
+      error: response.error ?? new Error("Import run update matched no row."),
+      status: response.status,
+      statusText: response.statusText,
+    }),
+  );
+
+  if (result.error || !result.data) {
+    throw new Error(
+      formatImportRunWriteFailure({
+        operation: "update",
+        importRunId,
+        payload: normalizedPayload,
+        error: result.error ?? new Error("Import run update matched no row."),
+        status: result.status,
+        statusText: result.statusText,
+      }),
+    );
+  }
 }
 
 async function checkpointImportRun(
@@ -190,18 +369,40 @@ async function checkpointImportRun(
   },
 ) {
   const supabase = createAppV2AdminClient();
+  const checkpointPayload = {
+    pages_fetched: payload.pagesFetched,
+    last_successful_page: payload.lastSuccessfulPage,
+    last_successful_cursor: payload.lastSuccessfulCursor,
+  } satisfies Record<string, unknown>;
 
-  const { error } = await supabase
-    .from("import_runs")
-    .update({
-      pages_fetched: payload.pagesFetched,
-      last_successful_page: payload.lastSuccessfulPage,
-      last_successful_cursor: payload.lastSuccessfulCursor,
-    })
-    .eq("id", importRunId);
+  const result = await retryImportRunWrite(
+    "checkpoint",
+    () =>
+      supabase
+        .from("import_runs")
+        .update(checkpointPayload)
+        .eq("id", importRunId)
+        .select("id")
+        .single(),
+    (response) => Boolean(response.error || !response.data),
+    (response) => ({
+      error: response.error ?? new Error("Import run checkpoint matched no row."),
+      status: response.status,
+      statusText: response.statusText,
+    }),
+  );
 
-  if (error) {
-    throw new Error(`Could not checkpoint import run "${importRunId}".`);
+  if (result.error || !result.data) {
+    throw new Error(
+      formatImportRunWriteFailure({
+        operation: "checkpoint",
+        importRunId,
+        payload: checkpointPayload,
+        error: result.error ?? new Error("Import run checkpoint matched no row."),
+        status: result.status,
+        statusText: result.statusText,
+      }),
+    );
   }
 }
 

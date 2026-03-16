@@ -33,6 +33,7 @@
 - If touching importer work, does the real-source path expose skip counts and warning signals instead of silently dropping incomplete source rows?
 - If touching importer work, do non-JSON Datafordeler responses surface status, content type, and a short safe body preview instead of opaque JSON parse failures?
 - If touching importer work, do long-running runs checkpoint progress explicitly and support resuming from the latest failed run without inventing a broader job system?
+- If touching importer checkpoints or `app_v2.import_runs`, do write failures surface the real table/operation/status context and retry bounded transient failures instead of failing with a generic message?
 - If touching importer work, are missing/deactivation transitions blocked unless the run completed successfully and cleared the documented coverage guard?
 - If touching live Datafordeler selection logic, does it still enforce positive `byg069Sikringsrumpladser` instead of relying on BBR status `6` alone?
 - If touching DAR enrichment, does the adapter treat `DAR_Husnummer.navngivenVej` and `DAR_Husnummer.postnummer` as relation ids and resolve them explicitly instead of assuming nested objects?
@@ -40,10 +41,12 @@
 - If touching BBR coordinates, does the adapter use the confirmed live shape `byg404Koordinat.wkt` and convert EPSG:25832 explicitly instead of guessing coordinate fields?
 - If touching importer work, are any currently deferred official fields documented explicitly instead of being silently guessed?
 - If touching the Datafordeler adapter, is the real inclusion rule still explicit: nationwide by default and BBR `status = 6` as the primary shelter-selection rule?
+- If touching municipality metadata, does the importer use the bundled municipality map first, keep env overrides explicit, and avoid emitting the same fallback warning once per shelter row?
 - If touching the database model, does new v2 work land in `app_v2` without modifying legacy `public` objects unless the task explicitly requires it?
 - If touching Supabase queries or writes, is schema targeting explicit for `app_v2` and are any required API-schema exposure steps documented?
 - If touching server-rendered public `app_v2` reads, do they keep working cleanly during validation when the anon key is missing, without exposing service-role behavior to the browser?
 - If touching public `app_v2` reads, do sparse imported records still render honest fallback copy instead of blank summaries or trust sections?
+- If touching municipality reads, do canonical slugs still resolve cleanly even when current `app_v2` rows still carry older fallback municipality slugs or names?
 - If touching navigation, are real links used for navigation semantics instead of rendering links through button primitives?
 - If touching shared inputs, does the input path avoid unstable server/client ids that can cause hydration mismatches?
 - Is the change small enough to review easily?

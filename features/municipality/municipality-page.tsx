@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PageShell } from "@/components/shared/page-shell";
 import { SectionHeading } from "@/components/shared/section-heading";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { MunicipalityDetail } from "@/lib/supabase/queries";
 
@@ -69,12 +69,12 @@ export function MunicipalityPage({ municipality }: MunicipalityPageProps) {
                 <CardTitle>Related navigation</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button className="w-full" render={<Link href="/find" />} variant="outline">
+                <Link className={buttonVariants({ className: "w-full", variant: "outline" })} href="/find">
                   Back to search
-                </Button>
-                <Button className="w-full" render={<Link href="/om-data" />} variant="ghost">
+                </Link>
+                <Link className={buttonVariants({ className: "w-full", variant: "ghost" })} href="/om-data">
                   About the data
-                </Button>
+                </Link>
               </CardContent>
             </Card>
           </aside>

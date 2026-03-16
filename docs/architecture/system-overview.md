@@ -34,6 +34,8 @@
 18. Public runtime reads are now hardened for sparse `app_v2` content: blank imported summaries and blank source summaries are converted into explicit fallback copy instead of rendering empty sections.
 19. Public server-rendered `app_v2` reads can now fall back to the server-only admin client when `NEXT_PUBLIC_SUPABASE_ANON_KEY` is missing during validation; browser auth flows still require a real public key.
 20. Shared navigation now uses real `next/link` elements styled with shared button variants, and the homepage text input uses a native input wrapper to avoid server/client id drift during hydration.
+21. Municipality metadata now comes from a bundled national municipality map keyed by BBR municipality code, and shared runtime reads canonicalize legacy fallback municipality slugs and names already stored in `app_v2`.
+22. Typed-address search has been validated against the imported `app_v2` dataset: DAWA geocoding still redirects into the existing `lat` / `lng` / `resolved` search path and now returns real nearby shelters without further route-contract changes.
 
 ## Current Boundaries
 - No advanced map behavior yet beyond the first shared results map on `/find`.

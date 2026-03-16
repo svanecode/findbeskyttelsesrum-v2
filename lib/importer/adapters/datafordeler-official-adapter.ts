@@ -7,8 +7,11 @@ import type {
   ImporterFetchResult,
   ImporterWarning,
 } from "@/lib/importer/types";
-
 import { DatafordelerGraphqlClient } from "@/lib/importer/clients/datafordeler";
+import {
+  getMunicipalityMetadataByCode,
+  type MunicipalityMetadata,
+} from "@/lib/municipalities/metadata";
 
 type BbrBuildingNode = {
   id_lokalId: string;
@@ -68,12 +71,6 @@ type DarPostalCodesResponse = {
   DAR_Postnummer: Connection<DarPostalCodeNode>;
 };
 
-type MunicipalityMetadata = {
-  slug: string;
-  name: string;
-  regionName: string | null;
-};
-
 type DatafordelerAdapterConfig = {
   apiKey: string;
   bbrGraphqlUrl: string;
@@ -121,19 +118,6 @@ proj4.defs(
   ETRS89_UTM32,
   "+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type=crs",
 );
-
-const defaultMunicipalityOverrides: Record<string, MunicipalityMetadata> = {
-  "0101": {
-    slug: "kobenhavn",
-    name: "Copenhagen",
-    regionName: "Capital Region of Denmark",
-  },
-  "0147": {
-    slug: "frederiksberg",
-    name: "Frederiksberg",
-    regionName: "Capital Region of Denmark",
-  },
-};
 
 const BBR_ACTIVE_STATUS = "6";
 
@@ -488,7 +472,6 @@ function getConfig(): DatafordelerAdapterConfig {
       process.env.DATAFORDELER_DAR_GRAPHQL_URL?.trim() || "https://graphql.datafordeler.dk/DAR/v1",
     municipalityCodes: getOptionalCsvEnv("DATAFORDELER_MUNICIPALITY_CODES"),
     municipalityOverrides: {
-      ...defaultMunicipalityOverrides,
       ...parseMunicipalityOverrides(process.env.DATAFORDELER_MUNICIPALITY_METADATA),
     },
     shelterUsageCodes: new Set(getDatafordelerShelterUsageCodes()),
@@ -530,6 +513,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     );
 
     const warnings: ImporterWarning[] = [];
+    const warnedMunicipalityCodes = new Set<string>();
     const counters: AdapterCounters = {
       acceptedAfterCapacityFilter: 0,
       skippedRecords: 0,
@@ -565,6 +549,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         building,
         darLookupMaps,
         warnings,
+        warnedMunicipalityCodes,
         counters,
       );
 
@@ -680,7 +665,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         warnings.push({
           level: "warning",
           code: "bbr_max_pages_reached",
-          message: `Stopped the dry-run after ${snapshot.maxPages} BBR pages because --max-pages was set.`,
+          message: `Stopped the validation run after ${snapshot.maxPages} BBR pages because --max-pages was set.`,
         });
         break;
       }
@@ -956,9 +941,14 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     building: BbrBuildingNode,
     darLookupMaps: DarLookupMaps,
     warnings: ImporterWarning[],
+    warnedMunicipalityCodes: Set<string>,
     counters: AdapterCounters,
   ): ImportedShelterRecord | null {
-    const municipality = this.getMunicipalityMetadata(building.kommunekode, warnings);
+    const municipality = this.getMunicipalityMetadata(
+      building.kommunekode,
+      warnings,
+      warnedMunicipalityCodes,
+    );
 
     if (!municipality) {
       counters.missingMunicipalityCount += 1;
@@ -1096,19 +1086,26 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     };
   }
 
-  private getMunicipalityMetadata(code: string, warnings: ImporterWarning[]) {
-    const known = this.config.municipalityOverrides[code];
+  private getMunicipalityMetadata(
+    code: string,
+    warnings: ImporterWarning[],
+    warnedMunicipalityCodes: Set<string>,
+  ) {
+    const known = this.config.municipalityOverrides[code] ?? getMunicipalityMetadataByCode(code);
 
     if (known) {
       return known;
     }
 
-    warnings.push({
-      level: "warning",
-      code: "municipality_metadata_fallback",
-      message: `No municipality metadata override was configured for municipality code ${code}. Using a generated fallback value.`,
-      reference: code,
-    });
+    if (!warnedMunicipalityCodes.has(code)) {
+      warnedMunicipalityCodes.add(code);
+      warnings.push({
+        level: "warning",
+        code: "municipality_metadata_fallback",
+        message: `No municipality metadata mapping was available for municipality code ${code}. Using a generated fallback value once for this code.`,
+        reference: code,
+      });
+    }
 
     return {
       slug: `kommune-${code}`,

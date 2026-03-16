@@ -3,7 +3,7 @@ import { ArrowUpRight, Compass, MapPinned } from "lucide-react";
 
 import { PageShell } from "@/components/shared/page-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ShelterDetail } from "@/lib/supabase/queries";
 
@@ -169,15 +169,15 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
                   </div>
                 </div>
                 {mapsUrl ? (
-                  <Button
-                    render={
-                      <a href={mapsUrl} rel="noreferrer" target="_blank" />
-                    }
-                    variant="outline"
+                  <a
+                    className={buttonVariants({ variant: "outline" })}
+                    href={mapsUrl}
+                    rel="noreferrer"
+                    target="_blank"
                   >
                     <Compass />
                     Open in maps
-                  </Button>
+                  </a>
                 ) : null}
               </CardContent>
             </Card>
@@ -198,17 +198,16 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
                 <CardTitle>Related navigation</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button className="w-full" render={<Link href="/find" />} variant="outline">
+                <Link className={buttonVariants({ className: "w-full", variant: "outline" })} href="/find">
                   Back to search
-                </Button>
+                </Link>
                 {shelter.municipality.slug !== "unknown" ? (
-                  <Button
-                    className="w-full"
-                    render={<Link href={`/kommune/${shelter.municipality.slug}`} />}
-                    variant="ghost"
+                  <Link
+                    className={buttonVariants({ className: "w-full", variant: "ghost" })}
+                    href={`/kommune/${shelter.municipality.slug}`}
                   >
                     View municipality page
-                  </Button>
+                  </Link>
                 ) : null}
               </CardContent>
             </Card>

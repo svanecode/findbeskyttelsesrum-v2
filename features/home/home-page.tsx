@@ -4,7 +4,7 @@ import { ArrowRight, Database, MapPinned, ShieldCheck } from "lucide-react";
 import { PageShell } from "@/components/shared/page-shell";
 import { SectionHeading } from "@/components/shared/section-heading";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardContent,
@@ -126,17 +126,19 @@ export function HomePage({ featuredShelters }: HomePageProps) {
                     </div>
                   </CardContent>
                   <CardFooter className="justify-between gap-3">
-                    <Button render={<Link href={`/beskyttelsesrum/${shelter.slug}`} />} variant="link">
+                    <Link
+                      className={buttonVariants({ variant: "link" })}
+                      href={`/beskyttelsesrum/${shelter.slug}`}
+                    >
                       View shelter
                       <ArrowRight />
-                    </Button>
-                    <Button
-                      render={<Link href={`/kommune/${shelter.municipality.slug}`} />}
-                      size="sm"
-                      variant="outline"
+                    </Link>
+                    <Link
+                      className={buttonVariants({ size: "sm", variant: "outline" })}
+                      href={`/kommune/${shelter.municipality.slug}`}
                     >
                       Municipality page
-                    </Button>
+                    </Link>
                   </CardFooter>
                 </Card>
               ))

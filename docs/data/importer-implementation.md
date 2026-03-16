@@ -75,9 +75,9 @@ Current normalization behavior:
   - explicit skip when no DAR house-number reference or no usable DAR address exists
 - municipality:
   - driven by BBR `kommunekode`
+  - repo now keeps a bundled municipality metadata map for all Danish municipality codes
   - env can provide explicit `code:slug:name:region` metadata overrides
-  - repo keeps a small bundled default for current seeded municipalities
-  - unknown codes still fall back, but now emit warnings
+  - unknown codes still fall back, but now emit one warning per municipality code per run instead of one warning per shelter row
 - address:
   - built from `DAR_Husnummer.husnummertekst`
   - plus `DAR_NavngivenVej.vejnavn`
@@ -102,16 +102,16 @@ What is now considered validated:
 - DAR enrichment now uses a valid three-step path: `DAR_Husnummer`, `DAR_NavngivenVej`, and `DAR_Postnummer`
 - live BBR coordinate enrichment is now confirmed and working through `byg404Koordinat.wkt`
 - incomplete DAR data no longer fails silently; skipped records are counted and warned
-- municipality fallback is explicit and warning-backed instead of being silently invented
+- municipality metadata is now explicit from a bundled national map instead of relying on generated fallback names for ordinary Danish municipality codes
+- municipality fallback remains warning-backed for unknown codes, but warning noise is deduplicated per code
 
 What is still provisional:
-- municipality metadata should eventually be fully sourced instead of relying on local overrides/fallbacks
+- region labels are still conservative and may remain `null` until a stronger official region source is introduced
 - official capacity and readiness semantics are still deferred
 
 Deferred for later source work:
 - shelter-specific official capacity mapping
 - shelter-specific readiness/status semantics
-- richer municipality metadata coverage
 - source-side verification timestamps when the official source exposes a trustworthy field for them
 
 ## Local Verification
@@ -140,6 +140,8 @@ The Datafordeler path is designed for non-interactive execution:
 - `--resume-latest` resumes from the latest failed `app_v2.import_runs` checkpoint for the same source
 - Datafordeler requests now retry with bounded backoff on timeout, 429, 5xx, and transient non-JSON upstream responses
 - non-JSON responses now log HTTP status, content type, and a short safe body preview instead of failing as opaque parse errors
+- `app_v2.import_runs` writes now surface the real PostgREST status and error details instead of collapsing checkpoint failures to a generic message
+- checkpoint writes retry bounded transient failures before aborting a long run
 - A capped live dry-run can now complete end-to-end with the current DAR query shape
 - A capped live dry-run can now complete end-to-end with coordinates included in the normalized output when BBR provides valid WKT
 - DAR relation-id `in` queries are now hard-capped at `100` ids per batch because larger lists trigger live Datafordeler `400` failures
@@ -168,6 +170,13 @@ The Datafordeler path is designed for non-interactive execution:
 - `missing_transitions_applied`
 - `missing_transitions_skipped_reason`
 
+Checkpoint behavior:
+- the importer creates an `app_v2.import_runs` row up front
+- after each successful BBR page, it updates `pages_fetched`, `last_successful_page`, and `last_successful_cursor`
+- checkpoint writes now use a narrow retry loop for transient Supabase/PostgREST failures
+- checkpoint failures now include the operation type, schema/table, status, payload-key summary, and safe error details in the importer output
+- `--max-pages` can be used on a real validation run to verify checkpoint writes without attempting a full nationwide import
+
 Expected behavior:
 - `baseline`
   - inserts fixture shelters
@@ -184,6 +193,7 @@ Expected behavior:
 - Status `6` alone was too broad for a believable shelter set; positive `byg069Sikringsrumpladser` is now part of the effective inclusion rule.
 - The real adapter currently imports only the narrow field subset documented above; it does not claim full BBR/DAR shelter coverage yet.
 - The real adapter is suitable for later GitHub Actions execution, but the workflow itself is not implemented yet.
+- The earlier long-run checkpoint failure was not a schema mismatch in `app_v2.import_runs`; the write path itself was valid, but one opaque checkpoint-write failure could abort the whole run without exposing the real PostgREST error.
 - Before GitHub Actions scheduling is safe, one full real run should complete, checkpoint/resume should be verified at least once, and the missing-transition guard should behave as expected on real `app_v2` counts.
 
 ## Next Extension Path

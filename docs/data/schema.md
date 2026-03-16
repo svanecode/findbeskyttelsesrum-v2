@@ -3,6 +3,7 @@
 ## Core Tables
 - `app_v2.municipalities`
   - Public municipality records used for routing and grouping.
+  - Runtime reads now canonicalize legacy fallback rows like `kommune-0175` / `Municipality 0175` through a bundled municipality metadata map so the current imported dataset can render real names and route slugs before the next import refresh.
 - `app_v2.shelters`
   - Public shelter records shown to end users.
 - `app_v2.shelter_sources`
@@ -40,6 +41,7 @@
 - `/find` free-text search across shelter name, address, city, and postcode with optional municipality narrowing.
 - `/find` coordinate search uses `app_v2.shelters.latitude` and `app_v2.shelters.longitude`, sorts by distance in the app layer, and still applies active shelter overrides before rendering public results.
 - Typed-address search geocodes the query first; when it resolves to coordinates, `/find` uses the coordinate search path against `app_v2.shelters` instead of falling back to an empty public-client state.
+- Municipality reads now resolve both canonical slugs and legacy fallback slugs, so routes like `/kommune/rodovre` keep working even when the current stored municipality slug still reflects an older generated fallback.
 - Shelter detail trust fields derived from `app_v2.shelter_sources` include primary source, verification date, import timestamp, and optional public notes.
 - Municipality landing-page cards derive primary source and quality state from related `app_v2.shelter_sources` rows for each public shelter.
 - Shared public reads now normalize sparse imported text safely: if `summary` or `source_summary` is blank, the query layer returns an explicit fallback string instead of rendering an empty section in the app.

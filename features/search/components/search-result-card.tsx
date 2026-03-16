@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardContent,
@@ -77,10 +78,10 @@ export function SearchResultCard({
               Show on map
             </Button>
           ) : null}
-          <Button render={<Link href={`/beskyttelsesrum/${result.slug}`} />} variant="link">
+          <Link className={buttonVariants({ variant: "link" })} href={`/beskyttelsesrum/${result.slug}`}>
             Open shelter
             <ArrowRight />
-          </Button>
+          </Link>
         </div>
       </CardFooter>
     </Card>

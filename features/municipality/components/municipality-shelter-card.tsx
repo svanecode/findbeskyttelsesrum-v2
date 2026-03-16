@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import {
   Card,
   CardContent,
@@ -50,10 +50,10 @@ export function MunicipalityShelterCard({ shelter }: MunicipalityShelterCardProp
         <p className="leading-6">{shelter.summary}</p>
       </CardContent>
       <CardFooter className="justify-end">
-        <Button render={<Link href={`/beskyttelsesrum/${shelter.slug}`} />} variant="link">
+        <Link className={buttonVariants({ variant: "link" })} href={`/beskyttelsesrum/${shelter.slug}`}>
           Open shelter
           <ArrowRight />
-        </Button>
+        </Link>
       </CardFooter>
     </Card>
   );

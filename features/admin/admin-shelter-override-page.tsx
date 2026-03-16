@@ -5,6 +5,7 @@ import { PageShell } from "@/components/shared/page-shell";
 import { SectionHeading } from "@/components/shared/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdminShelterOverrideContext } from "@/lib/supabase/queries";
 
@@ -104,12 +105,12 @@ export function AdminShelterOverridePage({
     <PageShell className="py-10 sm:py-14">
       <div className="space-y-8">
         <div className="flex flex-wrap gap-3">
-          <Button render={<Link href="/admin" />} variant="outline">
+          <Link className={buttonVariants({ variant: "outline" })} href="/admin">
             Back to moderation
-          </Button>
-          <Button render={<Link href={`/beskyttelsesrum/${shelter.slug}`} />} variant="ghost">
+          </Link>
+          <Link className={buttonVariants({ variant: "ghost" })} href={`/beskyttelsesrum/${shelter.slug}`}>
             Open public shelter page
-          </Button>
+          </Link>
         </div>
 
         <section className="space-y-4">

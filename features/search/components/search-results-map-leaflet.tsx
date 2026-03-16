@@ -6,7 +6,7 @@ import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from "react-leaf
 import type { LatLngExpression, LatLngTuple } from "leaflet";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceLabel } from "@/lib/location/distance";
 import type { SearchShelterResult } from "@/lib/supabase/queries";
@@ -178,13 +178,12 @@ export function SearchResultsMapLeaflet({
                           <Badge variant="outline">{formatDistanceLabel(result.distanceKm)}</Badge>
                         ) : null}
                       </div>
-                      <Button
-                        render={<Link href={`/beskyttelsesrum/${result.slug}`} />}
-                        size="sm"
-                        variant="outline"
+                      <Link
+                        className={buttonVariants({ size: "sm", variant: "outline" })}
+                        href={`/beskyttelsesrum/${result.slug}`}
                       >
                         Open shelter
-                      </Button>
+                      </Link>
                     </div>
                   </Popup>
                 </CircleMarker>

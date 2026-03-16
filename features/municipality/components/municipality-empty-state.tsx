@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function MunicipalityEmptyState() {
@@ -15,12 +15,12 @@ export function MunicipalityEmptyState() {
           the public shelter list has not been connected yet.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button render={<Link href="/find" />} variant="outline">
+          <Link className={buttonVariants({ variant: "outline" })} href="/find">
             Back to search
-          </Button>
-          <Button render={<Link href="/om-data" />} variant="ghost">
+          </Link>
+          <Link className={buttonVariants({ variant: "ghost" })} href="/om-data">
             Read about the data
-          </Button>
+          </Link>
         </div>
       </CardContent>
     </Card>
