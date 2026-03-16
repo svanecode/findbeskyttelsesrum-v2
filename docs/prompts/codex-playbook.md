@@ -36,6 +36,7 @@
 - If touching importer work, are missing/deactivation transitions blocked unless the run completed successfully and cleared the documented coverage guard?
 - If touching live Datafordeler selection logic, does it still enforce positive `byg069Sikringsrumpladser` instead of relying on BBR status `6` alone?
 - If touching DAR enrichment, does the adapter treat `DAR_Husnummer.navngivenVej` and `DAR_Husnummer.postnummer` as relation ids and resolve them explicitly instead of assuming nested objects?
+- If touching DAR enrichment, are all DAR `in` queries hard-capped at `100` ids or fewer so full runs do not fail on oversized batches?
 - If touching BBR coordinates, does the adapter use the confirmed live shape `byg404Koordinat.wkt` and convert EPSG:25832 explicitly instead of guessing coordinate fields?
 - If touching importer work, are any currently deferred official fields documented explicitly instead of being silently guessed?
 - If touching the Datafordeler adapter, is the real inclusion rule still explicit: nationwide by default and BBR `status = 6` as the primary shelter-selection rule?

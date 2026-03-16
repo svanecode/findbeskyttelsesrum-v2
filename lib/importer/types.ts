@@ -63,6 +63,9 @@ export type ImporterFetchStats = {
   acceptedWithoutCoordinatesCount: number;
   missingCoordinatesCount: number;
   coordinateParseFailureCount: number;
+  darBatchSizeUsed: number;
+  darFailedBatchCount: number;
+  acceptedRecordsSkippedDueToDarFailure: number;
   skipReasonCounts: Array<{
     code: string;
     count: number;

@@ -25,6 +25,7 @@ Track how official baseline data enters the system, how admin corrections stay s
 - The default Datafordeler scope is now nationwide; BBR `status = 6` is the primary official inclusion rule.
 - BBR `status = 6` alone was too broad in live validation, so positive `byg069Sikringsrumpladser` is now also required before a record is accepted into the normalized importer output.
 - DAR enrichment now uses a valid three-step lookup: `DAR_Husnummer` for relation ids and house-number text, then `DAR_NavngivenVej` and `DAR_Postnummer` for road name and postal metadata.
+- DAR relation-id lookups are now hard-capped at `100` ids per `in` query because larger live Datafordeler lists can fail with `400 Bad Request`.
 - BBR coordinates now use the confirmed live field shape `byg404Koordinat.wkt` and are converted from EPSG:25832 WKT points into WGS84 latitude/longitude.
 - Optional municipality and usage-code env vars can still narrow a run for debugging or phased validation, but they are no longer required for normal execution.
 - CLI entry points:
@@ -66,3 +67,4 @@ Track how official baseline data enters the system, how admin corrections stay s
 - The current skeleton implementation is documented in `docs/data/importer-implementation.md`.
 - Missing/deactivation logic must only run after a fully successful non-resumed import with adequate coverage relative to the previous active shelter count.
 - Non-JSON Datafordeler responses should be treated as operational upstream failures with bounded retries and useful diagnostics, not as generic parse errors.
+- Oversized DAR relation-id batches can make a run look superficially successful while normalizing almost no shelters; batch-size limits are therefore part of importer correctness, not just performance tuning.

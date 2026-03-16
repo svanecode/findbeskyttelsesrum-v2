@@ -34,6 +34,9 @@ export class FixtureOfficialSourceAdapter implements OfficialSourceAdapter {
         ).length,
         missingCoordinatesCount: 0,
         coordinateParseFailureCount: 0,
+        darBatchSizeUsed: 0,
+        darFailedBatchCount: 0,
+        acceptedRecordsSkippedDueToDarFailure: 0,
         skipReasonCounts: [],
       },
     };

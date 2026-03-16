@@ -142,12 +142,22 @@ The Datafordeler path is designed for non-interactive execution:
 - non-JSON responses now log HTTP status, content type, and a short safe body preview instead of failing as opaque parse errors
 - A capped live dry-run can now complete end-to-end with the current DAR query shape
 - A capped live dry-run can now complete end-to-end with coordinates included in the normalized output when BBR provides valid WKT
+- DAR relation-id `in` queries are now hard-capped at `100` ids per batch because larger lists trigger live Datafordeler `400` failures
 
 ## Long-run Safety Rules
 - A failed run never applies missing/deactivation transitions.
 - A resumed run never applies missing/deactivation transitions. Resume is only for finishing the source scan safely.
 - A non-resumed successful run applies `missing_from_source` transitions only when `records_seen >= max(25, ceil(previous_active_count * 0.8))`.
 - If that guard blocks missing transitions, the run still succeeds, but the reason is stored on `app_v2.import_runs`.
+
+## DAR Bulk-Enrichment Rule
+- Datafordeler DAR `in` filters must stay at or below `100` values per request.
+- The importer now uses a hard DAR batch size of `100` for:
+  - `DAR_Husnummer`
+  - `DAR_NavngivenVej`
+  - `DAR_Postnummer`
+- This cap is independent from the BBR page size.
+- Earlier full-run results that normalized only a few shelters out of thousands of accepted candidates were not credible, because oversized DAR batches caused `400` failures and dropped most accepted records on address enrichment.
 
 ## Checkpoint Fields
 `app_v2.import_runs` now stores:

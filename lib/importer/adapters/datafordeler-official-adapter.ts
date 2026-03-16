@@ -97,6 +97,8 @@ type AdapterCounters = {
   acceptedWithoutCoordinatesCount: number;
   missingCoordinatesCount: number;
   coordinateParseFailureCount: number;
+  darFailedBatchCount: number;
+  acceptedRecordsSkippedDueToDarFailure: number;
   skipReasonCounts: Map<string, number>;
 };
 
@@ -104,12 +106,16 @@ type DarLookupMaps = {
   houseNumbers: Map<string, DarHouseNumberNode>;
   namedRoads: Map<string, DarNamedRoadNode>;
   postalCodes: Map<string, DarPostalCodeNode>;
+  failedHouseNumberIds: Set<string>;
+  failedNamedRoadIds: Set<string>;
+  failedPostalCodeIds: Set<string>;
 };
 
 const CANONICAL_SOURCE_NAME = "datafordeler-bbr-dar";
 const BBR_DOCS_URL = "https://datafordeler.dk/dataoversigt/bygnings-og-boligregistret-bbr/bbr-graphql/";
 const ETRS89_UTM32 = "EPSG:25832";
 const WGS84 = "EPSG:4326";
+const safeDarBatchSize = 100;
 
 proj4.defs(
   ETRS89_UTM32,
@@ -534,6 +540,8 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       acceptedWithoutCoordinatesCount: 0,
       missingCoordinatesCount: 0,
       coordinateParseFailureCount: 0,
+      darFailedBatchCount: 0,
+      acceptedRecordsSkippedDueToDarFailure: 0,
       skipReasonCounts: new Map(),
     };
 
@@ -545,7 +553,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       `[importer] datafordeler: ${eligibleBuildings.length} BBR records passed status and capacity filtering`,
     );
 
-    const darLookupMaps = await this.fetchDarLookups(eligibleBuildings, warnings);
+    const darLookupMaps = await this.fetchDarLookups(eligibleBuildings, warnings, counters);
     console.log(
       `[importer] datafordeler: fetched ${darLookupMaps.houseNumbers.size} DAR house-number rows, ${darLookupMaps.namedRoads.size} named roads, and ${darLookupMaps.postalCodes.size} postal codes`,
     );
@@ -595,6 +603,9 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         acceptedWithoutCoordinatesCount: counters.acceptedWithoutCoordinatesCount,
         missingCoordinatesCount: counters.missingCoordinatesCount,
         coordinateParseFailureCount: counters.coordinateParseFailureCount,
+        darBatchSizeUsed: safeDarBatchSize,
+        darFailedBatchCount: counters.darFailedBatchCount,
+        acceptedRecordsSkippedDueToDarFailure: counters.acceptedRecordsSkippedDueToDarFailure,
         skipReasonCounts: [...counters.skipReasonCounts.entries()]
           .map(([code, count]) => ({ code, count }))
           .sort((left, right) => right.count - left.count),
@@ -684,6 +695,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
   private async fetchDarLookups(
     buildings: BbrBuildingNode[],
     warnings: ImporterWarning[],
+    counters: AdapterCounters,
   ): Promise<DarLookupMaps> {
     const houseNumberIds = [...new Set(buildings.map((building) => building.husnummer).filter(Boolean))] as string[];
 
@@ -692,15 +704,23 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         houseNumbers: new Map(),
         namedRoads: new Map(),
         postalCodes: new Map(),
+        failedHouseNumberIds: new Set(),
+        failedNamedRoadIds: new Set(),
+        failedPostalCodeIds: new Set(),
       };
     }
 
-    const batches = chunkValues(houseNumberIds, this.config.pageSize);
+    console.log(
+      `[importer] datafordeler: DAR relation-id queries use batchSize=${safeDarBatchSize} (Datafordeler in-limit safe cap)`,
+    );
+
+    const batches = chunkValues(houseNumberIds, safeDarBatchSize);
     const houseNumbers = new Map<string, DarHouseNumberNode>();
+    const failedHouseNumberIds = new Set<string>();
 
     for (const [batchIndex, batch] of batches.entries()) {
       console.log(
-        `[importer] datafordeler: fetching DAR house-number batch ${batchIndex + 1}/${batches.length}`,
+        `[importer] datafordeler: fetching DAR house-number batch ${batchIndex + 1}/${batches.length} (batchSize=${batch.length})`,
       );
 
       let payload: DarHouseNumbersResponse;
@@ -717,10 +737,12 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
           },
         });
       } catch (error) {
+        counters.darFailedBatchCount += 1;
+        batch.forEach((id) => failedHouseNumberIds.add(id));
         warnings.push({
           level: "warning",
           code: "dar_house_number_batch_failed",
-          message: `DAR house-number batch ${batchIndex + 1} failed and was skipped: ${error instanceof Error ? error.message : "Unknown error."}`,
+          message: `DAR house-number batch ${batchIndex + 1} failed at batch size ${batch.length} and was skipped: ${error instanceof Error ? error.message : "Unknown error."}`,
         });
         continue;
       }
@@ -755,27 +777,38 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       ),
     ] as string[];
 
-    const namedRoads = await this.fetchDarNamedRoads(namedRoadIds, warnings);
-    const postalCodes = await this.fetchDarPostalCodes(postalCodeIds, warnings);
+    const namedRoadLookup = await this.fetchDarNamedRoads(namedRoadIds, warnings, counters);
+    const postalCodeLookup = await this.fetchDarPostalCodes(postalCodeIds, warnings, counters);
 
     return {
       houseNumbers,
-      namedRoads,
-      postalCodes,
+      namedRoads: namedRoadLookup.records,
+      postalCodes: postalCodeLookup.records,
+      failedHouseNumberIds,
+      failedNamedRoadIds: namedRoadLookup.failedIds,
+      failedPostalCodeIds: postalCodeLookup.failedIds,
     };
   }
 
-  private async fetchDarNamedRoads(roadIds: string[], warnings: ImporterWarning[]) {
+  private async fetchDarNamedRoads(
+    roadIds: string[],
+    warnings: ImporterWarning[],
+    counters: AdapterCounters,
+  ) {
     if (roadIds.length === 0) {
-      return new Map<string, DarNamedRoadNode>();
+      return {
+        records: new Map<string, DarNamedRoadNode>(),
+        failedIds: new Set<string>(),
+      };
     }
 
-    const batches = chunkValues(roadIds, this.config.pageSize);
+    const batches = chunkValues(roadIds, safeDarBatchSize);
     const namedRoads = new Map<string, DarNamedRoadNode>();
+    const failedIds = new Set<string>();
 
     for (const [batchIndex, batch] of batches.entries()) {
       console.log(
-        `[importer] datafordeler: fetching DAR named-road batch ${batchIndex + 1}/${batches.length}`,
+        `[importer] datafordeler: fetching DAR named-road batch ${batchIndex + 1}/${batches.length} (batchSize=${batch.length})`,
       );
 
       let payload: DarNamedRoadsResponse;
@@ -792,10 +825,12 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
           },
         });
       } catch (error) {
+        counters.darFailedBatchCount += 1;
+        batch.forEach((id) => failedIds.add(id));
         warnings.push({
           level: "warning",
           code: "dar_named_road_batch_failed",
-          message: `DAR named-road batch ${batchIndex + 1} failed and was skipped: ${error instanceof Error ? error.message : "Unknown error."}`,
+          message: `DAR named-road batch ${batchIndex + 1} failed at batch size ${batch.length} and was skipped: ${error instanceof Error ? error.message : "Unknown error."}`,
         });
         continue;
       }
@@ -805,20 +840,31 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       }
     }
 
-    return namedRoads;
+    return {
+      records: namedRoads,
+      failedIds,
+    };
   }
 
-  private async fetchDarPostalCodes(postalCodeIds: string[], warnings: ImporterWarning[]) {
+  private async fetchDarPostalCodes(
+    postalCodeIds: string[],
+    warnings: ImporterWarning[],
+    counters: AdapterCounters,
+  ) {
     if (postalCodeIds.length === 0) {
-      return new Map<string, DarPostalCodeNode>();
+      return {
+        records: new Map<string, DarPostalCodeNode>(),
+        failedIds: new Set<string>(),
+      };
     }
 
-    const batches = chunkValues(postalCodeIds, this.config.pageSize);
+    const batches = chunkValues(postalCodeIds, safeDarBatchSize);
     const postalCodes = new Map<string, DarPostalCodeNode>();
+    const failedIds = new Set<string>();
 
     for (const [batchIndex, batch] of batches.entries()) {
       console.log(
-        `[importer] datafordeler: fetching DAR postal-code batch ${batchIndex + 1}/${batches.length}`,
+        `[importer] datafordeler: fetching DAR postal-code batch ${batchIndex + 1}/${batches.length} (batchSize=${batch.length})`,
       );
 
       let payload: DarPostalCodesResponse;
@@ -835,10 +881,12 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
           },
         });
       } catch (error) {
+        counters.darFailedBatchCount += 1;
+        batch.forEach((id) => failedIds.add(id));
         warnings.push({
           level: "warning",
           code: "dar_postal_code_batch_failed",
-          message: `DAR postal-code batch ${batchIndex + 1} failed and was skipped: ${error instanceof Error ? error.message : "Unknown error."}`,
+          message: `DAR postal-code batch ${batchIndex + 1} failed at batch size ${batch.length} and was skipped: ${error instanceof Error ? error.message : "Unknown error."}`,
         });
         continue;
       }
@@ -848,7 +896,10 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       }
     }
 
-    return postalCodes;
+    return {
+      records: postalCodes,
+      failedIds,
+    };
   }
 
   private isEligibleBuilding(
@@ -917,10 +968,20 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     const houseNumber = darLookupMaps.houseNumbers.get(building.husnummer ?? "");
 
     if (!houseNumber) {
+      const skippedDueToDarFailure =
+        !!building.husnummer && darLookupMaps.failedHouseNumberIds.has(building.husnummer);
+
+      if (skippedDueToDarFailure) {
+        counters.acceptedRecordsSkippedDueToDarFailure += 1;
+        incrementSkipReason(counters, "dar_house_number_lookup_failed");
+      }
+
       warnings.push({
         level: "warning",
-        code: "dar_house_number_not_found",
-        message: "Skipped building because the referenced DAR house-number row was not returned.",
+        code: skippedDueToDarFailure ? "dar_house_number_lookup_failed" : "dar_house_number_not_found",
+        message: skippedDueToDarFailure
+          ? "Skipped building because the referenced DAR house-number batch failed."
+          : "Skipped building because the referenced DAR house-number row was not returned.",
         reference: building.id_lokalId,
       });
       counters.missingAddressCount += 1;
@@ -950,10 +1011,21 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     const city = postalCodeRecord?.navn?.trim() ?? "";
 
     if (!roadName || !houseNumberText || !postalCode || !city) {
+      const skippedDueToDarFailure =
+        (!!houseNumber.navngivenVej && darLookupMaps.failedNamedRoadIds.has(houseNumber.navngivenVej)) ||
+        (!!houseNumber.postnummer && darLookupMaps.failedPostalCodeIds.has(houseNumber.postnummer));
+
+      if (skippedDueToDarFailure) {
+        counters.acceptedRecordsSkippedDueToDarFailure += 1;
+        incrementSkipReason(counters, "dar_related_lookup_failed");
+      }
+
       warnings.push({
         level: "warning",
-        code: "dar_incomplete_address",
-        message: "Skipped building because DAR address data was incomplete.",
+        code: skippedDueToDarFailure ? "dar_related_lookup_failed" : "dar_incomplete_address",
+        message: skippedDueToDarFailure
+          ? "Skipped building because a DAR related lookup batch failed."
+          : "Skipped building because DAR address data was incomplete.",
         reference: building.id_lokalId,
       });
       counters.missingAddressCount += 1;
