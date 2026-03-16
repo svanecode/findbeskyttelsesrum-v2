@@ -291,6 +291,10 @@ export type AdminShelterOverrideContext = {
   overrideValues: ShelterOverrideValues;
 };
 
+async function createAppV2ReadClient() {
+  return (await createAppV2ServerClient()) ?? createAppV2AdminClient();
+}
+
 function formatStatus(status: ShelterStatus) {
   switch (status) {
     case "active":
@@ -550,11 +554,7 @@ async function getActiveShelterOverrides(
 }
 
 export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]> {
-  const supabase = await createAppV2ServerClient();
-
-  if (!supabase) {
-    return [];
-  }
+  const supabase = await createAppV2ReadClient();
 
   const { data, error } = await supabase
     .from("shelters")
@@ -596,11 +596,7 @@ export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]>
 }
 
 export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetail | null> => {
-  const publicSupabase = await createAppV2ServerClient();
-
-  if (!publicSupabase) {
-    return null;
-  }
+  const publicSupabase = await createAppV2ReadClient();
 
   const shelterResponse = await publicSupabase
     .from("shelters")
@@ -700,11 +696,7 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
 });
 
 export const getMunicipalityBySlug = cache(async (slug: string): Promise<MunicipalityDetail | null> => {
-  const supabase = await createAppV2ServerClient();
-
-  if (!supabase) {
-    return null;
-  }
+  const supabase = await createAppV2ReadClient();
 
   const municipalityResponse = await supabase
     .from("municipalities")
@@ -776,7 +768,7 @@ export async function searchShelters(input: {
   latitude: number | null;
   longitude: number | null;
 }): Promise<SearchShelterResultSet> {
-  const supabase = await createAppV2ServerClient();
+  const supabase = await createAppV2ReadClient();
   const hasLocationSearch = input.latitude !== null && input.longitude !== null;
   const searchMode: SearchMode = hasLocationSearch
     ? input.query
@@ -791,20 +783,6 @@ export async function searchShelters(input: {
       }
     : null;
   const nearbyRadiusKm = hasLocationSearch ? 25 : null;
-
-  if (!supabase) {
-    return {
-      query: input.query,
-      municipalitySlug: input.municipalitySlug,
-      municipalityName: null,
-      isMunicipalityFilterInvalid: false,
-      coordinates,
-      searchMode,
-      hasNearbyResults: false,
-      nearbyRadiusKm,
-      results: [],
-    };
-  }
 
   let municipalityId: string | null = null;
   let municipalityName: string | null = null;

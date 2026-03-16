@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type SearchNoResultsProps = {
   query: string | null;
@@ -60,12 +61,15 @@ export function SearchNoResults({
             : "Try a shorter address fragment, a postcode, or remove the municipality filter from the URL to broaden the result set."}
         </p>
         <div className="flex flex-wrap gap-3">
-          <Button render={<Link href="/find?q=2300" />} variant="outline">
+          <Link className={buttonVariants({ variant: "outline" })} href="/find?q=2300">
             Try postcode search
-          </Button>
-          <Button render={<Link href="/find" />} variant="ghost">
+          </Link>
+          <Link
+            className={cn(buttonVariants({ variant: "ghost" }), "px-0")}
+            href="/find"
+          >
             Clear search
-          </Button>
+          </Link>
         </div>
       </CardContent>
     </Card>

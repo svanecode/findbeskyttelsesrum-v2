@@ -42,7 +42,10 @@
 - If touching the Datafordeler adapter, is the real inclusion rule still explicit: nationwide by default and BBR `status = 6` as the primary shelter-selection rule?
 - If touching the database model, does new v2 work land in `app_v2` without modifying legacy `public` objects unless the task explicitly requires it?
 - If touching Supabase queries or writes, is schema targeting explicit for `app_v2` and are any required API-schema exposure steps documented?
+- If touching server-rendered public `app_v2` reads, do they keep working cleanly during validation when the anon key is missing, without exposing service-role behavior to the browser?
 - If touching public `app_v2` reads, do sparse imported records still render honest fallback copy instead of blank summaries or trust sections?
+- If touching navigation, are real links used for navigation semantics instead of rendering links through button primitives?
+- If touching shared inputs, does the input path avoid unstable server/client ids that can cause hydration mismatches?
 - Is the change small enough to review easily?
 
 ## Delivery Checklist

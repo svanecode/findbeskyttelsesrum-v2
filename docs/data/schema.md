@@ -21,6 +21,7 @@
 - The new v2 database foundation now lives in `app_v2`.
 - New importer and shared query work now target `app_v2`, not the legacy `public` tables.
 - Full browser/server runtime success requires `app_v2` to be added to the project’s exposed API schemas in Supabase.
+- Current public server-rendered reads can still validate against `app_v2` when `NEXT_PUBLIC_SUPABASE_ANON_KEY` is temporarily missing, because the shared server query layer falls back to the server-only admin client. Browser auth and browser-side Supabase usage still require a real public key.
 
 ## Modeling Rules
 - `app_v2.shelters` is the v2 public read baseline and should stay readable and stable.
@@ -38,6 +39,7 @@
 - Shelter source list by shelter id.
 - `/find` free-text search across shelter name, address, city, and postcode with optional municipality narrowing.
 - `/find` coordinate search uses `app_v2.shelters.latitude` and `app_v2.shelters.longitude`, sorts by distance in the app layer, and still applies active shelter overrides before rendering public results.
+- Typed-address search geocodes the query first; when it resolves to coordinates, `/find` uses the coordinate search path against `app_v2.shelters` instead of falling back to an empty public-client state.
 - Shelter detail trust fields derived from `app_v2.shelter_sources` include primary source, verification date, import timestamp, and optional public notes.
 - Municipality landing-page cards derive primary source and quality state from related `app_v2.shelter_sources` rows for each public shelter.
 - Shared public reads now normalize sparse imported text safely: if `summary` or `source_summary` is blank, the query layer returns an explicit fallback string instead of rendering an empty section in the app.

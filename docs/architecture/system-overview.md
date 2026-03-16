@@ -32,6 +32,8 @@
 16. The current real-source selection rule is explicit: nationwide BBR `status = 6` records are the primary inclusion path, with municipality and usage-code filters retained only as optional operational narrowing.
 17. The next official-data gatherer iteration is expected to extend that importer skeleton while following the import and field-ownership specs in `docs/data/import-model.md`, `docs/data/field-ownership.md`, and `docs/data/import-contract.md`.
 18. Public runtime reads are now hardened for sparse `app_v2` content: blank imported summaries and blank source summaries are converted into explicit fallback copy instead of rendering empty sections.
+19. Public server-rendered `app_v2` reads can now fall back to the server-only admin client when `NEXT_PUBLIC_SUPABASE_ANON_KEY` is missing during validation; browser auth flows still require a real public key.
+20. Shared navigation now uses real `next/link` elements styled with shared button variants, and the homepage text input uses a native input wrapper to avoid server/client id drift during hydration.
 
 ## Current Boundaries
 - No advanced map behavior yet beyond the first shared results map on `/find`.

@@ -28,4 +28,6 @@
 - Keep internal moderation actions explicit and server-only; admin authorization currently uses Supabase Auth plus an email allowlist.
 - Keep manual override workflows explicit and narrow; support only the documented override fields, use the dedicated `/admin/shelters/[slug]/override` route, and keep imported values visible in admin tooling.
 - Keep shared presentational primitives in `components/ui` or `components/shared`.
+- Keep server-rendered navigation links as real `next/link` elements; use shared button-variant styling instead of rendering links through button primitives.
+- Keep shared text inputs on a stable native wrapper unless a richer browser-only control is actually needed.
 - Add new docs when introducing meaningful architectural or schema changes.

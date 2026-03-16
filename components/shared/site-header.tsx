@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { PageShell } from "@/components/shared/page-shell";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 
 const navigation = [
   { href: "/find", label: "Find shelters" },
@@ -28,9 +28,13 @@ export function SiteHeader() {
         </div>
         <nav className="flex flex-wrap items-center justify-end gap-2">
           {navigation.map((item) => (
-            <Button key={item.href} render={<Link href={item.href} />} size="sm" variant="ghost">
+            <Link
+              key={item.href}
+              className={buttonVariants({ size: "sm", variant: "ghost" })}
+              href={item.href}
+            >
               {item.label}
-            </Button>
+            </Link>
           ))}
         </nav>
       </PageShell>
