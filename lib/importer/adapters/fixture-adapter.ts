@@ -20,11 +20,21 @@ export class FixtureOfficialSourceAdapter implements OfficialSourceAdapter {
       warnings: [],
       stats: {
         fetchedRecords: records.length,
+        acceptedAfterCapacityFilter: records.length,
         normalizedRecords: records.length,
         skippedRecords: 0,
+        missingOrNonPositiveCapacityCount: 0,
         missingAddressCount: 0,
         missingMunicipalityCount: 0,
+        acceptedWithCoordinatesCount: records.filter(
+          (record) => record.shelter.latitude !== null && record.shelter.longitude !== null,
+        ).length,
+        acceptedWithoutCoordinatesCount: records.filter(
+          (record) => record.shelter.latitude === null || record.shelter.longitude === null,
+        ).length,
         missingCoordinatesCount: 0,
+        coordinateParseFailureCount: 0,
+        skipReasonCounts: [],
       },
     };
   }

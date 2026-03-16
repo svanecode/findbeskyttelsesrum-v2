@@ -31,6 +31,9 @@
 - If touching importer work, does real-source execution still work through env vars and a CLI path suitable for later GitHub Actions use?
 - If touching importer work, does the real-source path fail clearly on auth, timeout, network, and source-shape errors?
 - If touching importer work, does the real-source path expose skip counts and warning signals instead of silently dropping incomplete source rows?
+- If touching live Datafordeler selection logic, does it still enforce positive `byg069Sikringsrumpladser` instead of relying on BBR status `6` alone?
+- If touching DAR enrichment, does the adapter treat `DAR_Husnummer.navngivenVej` and `DAR_Husnummer.postnummer` as relation ids and resolve them explicitly instead of assuming nested objects?
+- If touching BBR coordinates, does the adapter use the confirmed live shape `byg404Koordinat.wkt` and convert EPSG:25832 explicitly instead of guessing coordinate fields?
 - If touching importer work, are any currently deferred official fields documented explicitly instead of being silently guessed?
 - If touching the Datafordeler adapter, is the real inclusion rule still explicit: nationwide by default and BBR `status = 6` as the primary shelter-selection rule?
 - If touching the database model, does new v2 work land in `app_v2` without modifying legacy `public` objects unless the task explicitly requires it?

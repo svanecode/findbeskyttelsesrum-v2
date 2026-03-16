@@ -11,6 +11,23 @@ function isDryRun() {
   return process.argv.includes("--dry-run");
 }
 
+function getMaxPages() {
+  const flagIndex = process.argv.findIndex((value) => value === "--max-pages");
+
+  if (flagIndex === -1) {
+    return undefined;
+  }
+
+  const raw = process.argv[flagIndex + 1];
+  const parsed = Number(raw);
+
+  if (!raw || !Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error("--max-pages must be followed by a positive integer.");
+  }
+
+  return parsed;
+}
+
 function getFixtureSnapshotName() {
   const snapshotName = process.argv[3] ?? "baseline";
 
@@ -27,11 +44,17 @@ async function main() {
     mode === "datafordeler" ? new DatafordelerOfficialSourceAdapter() : new FixtureOfficialSourceAdapter();
   const snapshotName = mode === "datafordeler" ? "live" : getFixtureSnapshotName();
   const dryRun = isDryRun();
+  const maxPages = getMaxPages();
 
-  console.log(`[importer] mode=${mode} source=${adapter.sourceName} snapshot=${snapshotName} dryRun=${dryRun}`);
+  console.log(
+    `[importer] mode=${mode} source=${adapter.sourceName} snapshot=${snapshotName} dryRun=${dryRun} maxPages=${maxPages ?? "none"}`,
+  );
   const summary = await runOfficialImporter({
     adapter,
-    snapshotName,
+    snapshot: {
+      name: snapshotName,
+      maxPages,
+    },
     dryRun,
   });
 
@@ -39,8 +62,17 @@ async function main() {
     `[importer] summary recordsSeen=${summary.recordsSeen} inserted=${summary.inserted} updated=${summary.updated} unchanged=${summary.unchanged} restored=${summary.restored} missing=${summary.missing} warnings=${summary.warningsCount}`,
   );
   console.log(
-    `[importer] fetchStats fetched=${summary.fetchStats.fetchedRecords} normalized=${summary.fetchStats.normalizedRecords} skipped=${summary.fetchStats.skippedRecords} missingAddress=${summary.fetchStats.missingAddressCount} missingMunicipality=${summary.fetchStats.missingMunicipalityCount} missingCoordinates=${summary.fetchStats.missingCoordinatesCount}`,
+    `[importer] fetchStats fetched=${summary.fetchStats.fetchedRecords} capacityAccepted=${summary.fetchStats.acceptedAfterCapacityFilter} normalized=${summary.fetchStats.normalizedRecords} skipped=${summary.fetchStats.skippedRecords} missingOrNonPositiveCapacity=${summary.fetchStats.missingOrNonPositiveCapacityCount} missingAddress=${summary.fetchStats.missingAddressCount} missingMunicipality=${summary.fetchStats.missingMunicipalityCount} acceptedWithCoordinates=${summary.fetchStats.acceptedWithCoordinatesCount} acceptedWithoutCoordinates=${summary.fetchStats.acceptedWithoutCoordinatesCount} missingCoordinates=${summary.fetchStats.missingCoordinatesCount} coordinateParseFailures=${summary.fetchStats.coordinateParseFailureCount}`,
   );
+
+  if (summary.fetchStats.skipReasonCounts.length > 0) {
+    console.log(
+      `[importer] topSkipReasons ${summary.fetchStats.skipReasonCounts
+        .slice(0, 5)
+        .map((reason) => `${reason.code}=${reason.count}`)
+        .join(" ")}`,
+    );
+  }
 
   for (const warning of summary.warningExamples) {
     console.warn(`[importer] warning ${warning}`);

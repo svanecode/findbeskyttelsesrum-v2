@@ -23,11 +23,15 @@ Track how official baseline data enters the system, how admin corrections stay s
 - Importer writes now target `app_v2`, not legacy `public`.
 - The app now assumes `app_v2` may start sparse or partially populated and uses fallback public copy when imported summaries or source summaries are still blank.
 - The default Datafordeler scope is now nationwide; BBR `status = 6` is the primary official inclusion rule.
+- BBR `status = 6` alone was too broad in live validation, so positive `byg069Sikringsrumpladser` is now also required before a record is accepted into the normalized importer output.
+- DAR enrichment now uses a valid three-step lookup: `DAR_Husnummer` for relation ids and house-number text, then `DAR_NavngivenVej` and `DAR_Postnummer` for road name and postal metadata.
+- BBR coordinates now use the confirmed live field shape `byg404Koordinat.wkt` and are converted from EPSG:25832 WKT points into WGS84 latitude/longitude.
 - Optional municipality and usage-code env vars can still narrow a run for debugging or phased validation, but they are no longer required for normal execution.
 - CLI entry points:
   - `npm run importer:fixture -- <snapshot>`
   - `npm run importer:datafordeler`
   - `npm run importer:datafordeler -- --dry-run`
+  - `npm run importer:datafordeler -- --dry-run --max-pages 25`
 - The skeleton currently proves:
   - canonical source identity matching
   - importer-owned field upserts
@@ -36,6 +40,8 @@ Track how official baseline data enters the system, how admin corrections stay s
   - narrow audit event creation
   - env-var-driven non-interactive execution for later GitHub Actions use
   - dry-run validation of live-source fetch and normalization without Supabase writes
+  - a capped live dry-run can now complete end-to-end with the current DAR query shape
+  - a capped live dry-run can now complete end-to-end with coordinates included when BBR returns valid WKT
 
 ## Required Future Flow
 1. Match by canonical official source identity first.

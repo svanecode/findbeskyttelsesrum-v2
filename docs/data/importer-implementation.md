@@ -50,13 +50,15 @@ The first Datafordeler-backed adapter now imports a narrow official subset:
   - `husnummer`
   - `byg007Bygningsnummer`
   - `byg021BygningensAnvendelse`
-  - `byg404Koordinat`
+  - `byg069Sikringsrumpladser`
+  - `byg404Koordinat.wkt`
 - DAR fields used now:
   - `id_lokalId`
-  - `navngivenVej.navn`
+  - `navngivenVej` relation id on `DAR_Husnummer`
   - `husnummertekst`
-  - `postnummer.nr`
-  - `postnummer.navn`
+  - `postnummer` relation id on `DAR_Husnummer`
+  - `vejnavn` from `DAR_NavngivenVej`
+  - `postnr` and `navn` from `DAR_Postnummer`
 
 Current normalization behavior:
 - canonical identity:
@@ -65,6 +67,7 @@ Current normalization behavior:
 - eligibility filter:
   - nationwide by default
   - BBR `status = 6` as the primary official inclusion rule
+  - `byg069Sikringsrumpladser > 0` as a second hard shelter-defining rule
   - optional municipality narrowing from env only when an operator explicitly wants a smaller run
   - optional BBR usage-code narrowing from env only when an operator explicitly wants a smaller run
   - DAR active-status allowlist, defaulting to `3`
@@ -75,10 +78,15 @@ Current normalization behavior:
   - repo keeps a small bundled default for current seeded municipalities
   - unknown codes still fall back, but now emit warnings
 - address:
-  - built from DAR road name, house-number text, postal code, and postal district
+  - built from `DAR_Husnummer.husnummertekst`
+  - plus `DAR_NavngivenVej.vejnavn`
+  - plus `DAR_Postnummer.postnr`
+  - plus `DAR_Postnummer.navn`
 - coordinates:
-  - imported from BBR `byg404Koordinat`
-  - converted from ETRS89 / UTM32 to WGS84
+  - read from `BBR_Bygning.byg404Koordinat.wkt`
+  - current live shape is WKT like `POINT (530607.89 6147886.08)`
+  - interpreted as ETRS89 / UTM32 (EPSG:25832)
+  - converted explicitly to WGS84 latitude/longitude with `proj4`
 - current conservative defaults:
   - `capacity = 0`
   - `status = under_review`
@@ -89,6 +97,9 @@ What is now considered validated:
 - canonical identity and lifecycle handling work with a real source adapter shape
 - BBR and DAR are fetched separately and normalized through one explicit adapter
 - the real nationwide business rule is explicit in code: BBR status `6` drives inclusion
+- positive `byg069Sikringsrumpladser` is now enforced before a record can enter the normalized importer output
+- DAR enrichment now uses a valid three-step path: `DAR_Husnummer`, `DAR_NavngivenVej`, and `DAR_Postnummer`
+- live BBR coordinate enrichment is now confirmed and working through `byg404Koordinat.wkt`
 - incomplete DAR data no longer fails silently; skipped records are counted and warned
 - municipality fallback is explicit and warning-backed instead of being silently invented
 
@@ -115,6 +126,7 @@ Run the real Datafordeler adapter with:
 ```bash
 npm run importer:datafordeler
 npm run importer:datafordeler -- --dry-run
+npm run importer:datafordeler -- --dry-run --max-pages 25
 ```
 
 The Datafordeler path is designed for non-interactive execution:
@@ -122,6 +134,10 @@ The Datafordeler path is designed for non-interactive execution:
 - console output is line-oriented and useful for CI logs
 - missing env vars and network/auth failures fail the process with a non-zero exit code
 - dry-run fetches and normalizes live data without writing to Supabase
+- `--max-pages` gives dry-run validation a small, explicit safety cap for live-source debugging
+- Datafordeler requests now retry with bounded backoff on timeout, 429, and 5xx responses
+- A capped live dry-run can now complete end-to-end with the current DAR query shape
+- A capped live dry-run can now complete end-to-end with coordinates included in the normalized output when BBR provides valid WKT
 
 Expected behavior:
 - `baseline`
@@ -136,6 +152,7 @@ Expected behavior:
 - No raw payload storage yet.
 - `source_summary` still remains a compatibility field on `shelters`; the importer sets it only for new rows and does not treat it as an importer-owned update field.
 - `DATAFORDELER_MUNICIPALITY_CODES` and BBR usage-code env vars are now optional operational narrowing controls, not required business-rule inputs.
+- Status `6` alone was too broad for a believable shelter set; positive `byg069Sikringsrumpladser` is now part of the effective inclusion rule.
 - The real adapter currently imports only the narrow field subset documented above; it does not claim full BBR/DAR shelter coverage yet.
 - The real adapter is suitable for later GitHub Actions execution, but the workflow itself is not implemented yet.
 

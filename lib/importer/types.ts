@@ -53,11 +53,20 @@ export type ImporterWarning = {
 
 export type ImporterFetchStats = {
   fetchedRecords: number;
+  acceptedAfterCapacityFilter: number;
   normalizedRecords: number;
   skippedRecords: number;
+  missingOrNonPositiveCapacityCount: number;
   missingAddressCount: number;
   missingMunicipalityCount: number;
+  acceptedWithCoordinatesCount: number;
+  acceptedWithoutCoordinatesCount: number;
   missingCoordinatesCount: number;
+  coordinateParseFailureCount: number;
+  skipReasonCounts: Array<{
+    code: string;
+    count: number;
+  }>;
 };
 
 export type ImporterFetchResult = {

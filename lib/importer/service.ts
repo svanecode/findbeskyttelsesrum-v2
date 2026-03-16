@@ -1,6 +1,6 @@
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
 
-import type { OfficialSourceAdapter } from "@/lib/importer/source-adapter";
+import type { OfficialSourceAdapter, ImporterSnapshot } from "@/lib/importer/source-adapter";
 import type { ImportedShelterRecord, ImporterRunSummary } from "@/lib/importer/types";
 
 type MunicipalityUpsertResult = {
@@ -418,15 +418,13 @@ async function markMissingShelters(input: {
 
 export async function runOfficialImporter(input: {
   adapter: OfficialSourceAdapter;
-  snapshotName: string;
+  snapshot: ImporterSnapshot;
   dryRun?: boolean;
 }): Promise<ImporterRunSummary> {
   const actorIdentifier = `importer:${input.adapter.sourceName}`;
 
   if (input.dryRun) {
-    const fetchResult = await input.adapter.fetchRecords({
-      name: input.snapshotName,
-    });
+    const fetchResult = await input.adapter.fetchRecords(input.snapshot);
     const records = fetchResult.records;
 
     assertUniqueCanonicalRecords(records);
@@ -434,7 +432,7 @@ export async function runOfficialImporter(input: {
 
     return {
       sourceName: input.adapter.sourceName,
-      snapshotName: input.snapshotName,
+      snapshotName: input.snapshot.name,
       dryRun: true,
       recordsSeen: records.length,
       inserted: 0,
@@ -454,9 +452,7 @@ export async function runOfficialImporter(input: {
   const importTimestamp = new Date().toISOString();
 
   try {
-    const fetchResult = await input.adapter.fetchRecords({
-      name: input.snapshotName,
-    });
+    const fetchResult = await input.adapter.fetchRecords(input.snapshot);
     const records = fetchResult.records;
 
     assertUniqueCanonicalRecords(records);
@@ -513,7 +509,7 @@ export async function runOfficialImporter(input: {
         eventType: "import_run_applied",
         payload: {
           source_name: input.adapter.sourceName,
-          snapshot_name: input.snapshotName,
+          snapshot_name: input.snapshot.name,
           records_seen: records.length,
           inserted: counters.inserted,
           updated: counters.updated,
@@ -526,7 +522,7 @@ export async function runOfficialImporter(input: {
 
     return {
       sourceName: input.adapter.sourceName,
-      snapshotName: input.snapshotName,
+      snapshotName: input.snapshot.name,
       dryRun: false,
       recordsSeen: records.length,
       inserted: counters.inserted,
@@ -557,7 +553,7 @@ export async function runOfficialImporter(input: {
       eventType: "import_run_failed",
       payload: {
         source_name: input.adapter.sourceName,
-        snapshot_name: input.snapshotName,
+        snapshot_name: input.snapshot.name,
         error_summary: errorSummary,
       },
     });

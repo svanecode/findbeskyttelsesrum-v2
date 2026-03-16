@@ -11,6 +11,7 @@ Define the exact contract the future official-data gatherer must write into Supa
 - Current official inclusion rule:
   - nationwide scope by default
   - BBR `status = 6` is the primary shelter-selection rule
+  - `byg069Sikringsrumpladser > 0` is also required before a record can be treated as a shelter candidate
   - municipality and usage-code filters are optional operational narrowing only
 
 ## Importer Responsibilities

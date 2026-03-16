@@ -1,4 +1,7 @@
+import proj4 from "proj4";
+
 import type { OfficialSourceAdapter } from "@/lib/importer/source-adapter";
+import type { ImporterSnapshot } from "@/lib/importer/source-adapter";
 import type {
   ImportedShelterRecord,
   ImporterFetchResult,
@@ -14,19 +17,29 @@ type BbrBuildingNode = {
   husnummer: string | null;
   byg007Bygningsnummer: string | null;
   byg021BygningensAnvendelse: string | null;
+  byg069Sikringsrumpladser: number | string | null;
+  byg404Koordinat?: {
+    wkt?: string | null;
+  } | null;
 };
 
 type DarHouseNumberNode = {
   id_lokalId: string;
   status: string | null;
-  navngivenVej?: {
-    navn?: string | null;
-  } | null;
+  navngivenVej?: string | null;
   husnummertekst?: string | null;
-  postnummer?: {
-    nr?: string | null;
-    navn?: string | null;
-  } | null;
+  postnummer?: string | null;
+};
+
+type DarNamedRoadNode = {
+  id_lokalId: string;
+  vejnavn?: string | null;
+};
+
+type DarPostalCodeNode = {
+  id_lokalId: string;
+  postnr?: string | null;
+  navn?: string | null;
 };
 
 type Connection<TNode> = {
@@ -45,6 +58,14 @@ type BbrBuildingsResponse = {
 
 type DarHouseNumbersResponse = {
   DAR_Husnummer: Connection<DarHouseNumberNode>;
+};
+
+type DarNamedRoadsResponse = {
+  DAR_NavngivenVej: Connection<DarNamedRoadNode>;
+};
+
+type DarPostalCodesResponse = {
+  DAR_Postnummer: Connection<DarPostalCodeNode>;
 };
 
 type MunicipalityMetadata = {
@@ -67,14 +88,34 @@ type DatafordelerAdapterConfig = {
 };
 
 type AdapterCounters = {
+  acceptedAfterCapacityFilter: number;
   skippedRecords: number;
+  missingOrNonPositiveCapacityCount: number;
   missingAddressCount: number;
   missingMunicipalityCount: number;
+  acceptedWithCoordinatesCount: number;
+  acceptedWithoutCoordinatesCount: number;
   missingCoordinatesCount: number;
+  coordinateParseFailureCount: number;
+  skipReasonCounts: Map<string, number>;
+};
+
+type DarLookupMaps = {
+  houseNumbers: Map<string, DarHouseNumberNode>;
+  namedRoads: Map<string, DarNamedRoadNode>;
+  postalCodes: Map<string, DarPostalCodeNode>;
 };
 
 const CANONICAL_SOURCE_NAME = "datafordeler-bbr-dar";
 const BBR_DOCS_URL = "https://datafordeler.dk/dataoversigt/bygnings-og-boligregistret-bbr/bbr-graphql/";
+const ETRS89_UTM32 = "EPSG:25832";
+const WGS84 = "EPSG:4326";
+
+proj4.defs(
+  ETRS89_UTM32,
+  "+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type=crs",
+);
+
 const defaultMunicipalityOverrides: Record<string, MunicipalityMetadata> = {
   "0101": {
     slug: "kobenhavn",
@@ -144,6 +185,10 @@ function buildFetchBbrBuildingsQuery(options: {
             husnummer
             byg007Bygningsnummer
             byg021BygningensAnvendelse
+            byg069Sikringsrumpladser
+            byg404Koordinat {
+              wkt
+            }
           }
         }
       }
@@ -155,8 +200,8 @@ const fetchDarHouseNumbersQuery = `
   query FetchDarHouseNumbers(
     $first: Int!
     $houseNumberIds: [String!]
-    $registreringstid: DateTime
-    $virkningstid: DateTime
+    $registreringstid: DafDateTime
+    $virkningstid: DafDateTime
   ) {
     DAR_Husnummer(
       first: $first
@@ -175,13 +220,59 @@ const fetchDarHouseNumbersQuery = `
           id_lokalId
           status
           husnummertekst
-          navngivenVej {
-            navn
-          }
-          postnummer {
-            nr
-            navn
-          }
+          navngivenVej
+          postnummer
+        }
+      }
+    }
+  }
+`;
+
+const fetchDarNamedRoadsQuery = `
+  query FetchDarNamedRoads(
+    $first: Int!
+    $roadIds: [String!]
+    $registreringstid: DafDateTime
+    $virkningstid: DafDateTime
+  ) {
+    DAR_NavngivenVej(
+      first: $first
+      registreringstid: $registreringstid
+      virkningstid: $virkningstid
+      where: {
+        id_lokalId: { in: $roadIds }
+      }
+    ) {
+      edges {
+        node {
+          id_lokalId
+          vejnavn
+        }
+      }
+    }
+  }
+`;
+
+const fetchDarPostalCodesQuery = `
+  query FetchDarPostalCodes(
+    $first: Int!
+    $postalCodeIds: [String!]
+    $registreringstid: DafDateTime
+    $virkningstid: DafDateTime
+  ) {
+    DAR_Postnummer(
+      first: $first
+      registreringstid: $registreringstid
+      virkningstid: $virkningstid
+      where: {
+        id_lokalId: { in: $postalCodeIds }
+      }
+    ) {
+      edges {
+        node {
+          id_lokalId
+          postnr
+          navn
         }
       }
     }
@@ -301,6 +392,87 @@ function buildSummary() {
   return "Imported from Datafordeler BBR and DAR. Shelter-specific capacity, accessibility, and readiness details are still being confirmed.";
 }
 
+function incrementSkipReason(counters: AdapterCounters, code: string) {
+  counters.skipReasonCounts.set(code, (counters.skipReasonCounts.get(code) ?? 0) + 1);
+}
+
+function parsePositiveShelterCapacity(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed =
+    typeof value === "number"
+      ? value
+      : Number(String(value).replace(",", ".").trim());
+
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return parsed > 0 ? Math.trunc(parsed) : 0;
+}
+
+function parseBbrCoordinateWkt(
+  value: string | null | undefined,
+): { latitude: number | null; longitude: number | null; isParseFailure: boolean } {
+  if (!value) {
+    return {
+      latitude: null,
+      longitude: null,
+      isParseFailure: false,
+    };
+  }
+
+  const match = value.match(/POINT\s*\(\s*([0-9.+-]+)\s+([0-9.+-]+)\s*\)/i);
+
+  if (!match) {
+    return {
+      latitude: null,
+      longitude: null,
+      isParseFailure: true,
+    };
+  }
+
+  const [, eastingRaw, northingRaw] = match;
+  const easting = Number(eastingRaw);
+  const northing = Number(northingRaw);
+
+  if (!Number.isFinite(easting) || !Number.isFinite(northing)) {
+    return {
+      latitude: null,
+      longitude: null,
+      isParseFailure: true,
+    };
+  }
+
+  const [longitude, latitude] = proj4(ETRS89_UTM32, WGS84, [easting, northing]);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return {
+      latitude: null,
+      longitude: null,
+      isParseFailure: true,
+    };
+  }
+
+  return {
+    latitude,
+    longitude,
+    isParseFailure: false,
+  };
+}
+
+function chunkValues(values: string[], size: number) {
+  const chunks: string[][] = [];
+
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
 function getConfig(): DatafordelerAdapterConfig {
   return {
     apiKey: getRequiredEnv("DATAFORDELER_API_KEY"),
@@ -346,36 +518,44 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     });
   }
 
-  async fetchRecords(snapshot: { name: string }): Promise<ImporterFetchResult> {
-    void snapshot;
-
+  async fetchRecords(snapshot: ImporterSnapshot): Promise<ImporterFetchResult> {
     console.log(
       `[importer] datafordeler: starting nationwide BBR status-${BBR_ACTIVE_STATUS} fetch${this.config.municipalityCodes.length > 0 ? ` with municipality narrowing (${this.config.municipalityCodes.join(", ")})` : ""}${this.config.shelterUsageCodes.size > 0 ? ` and usage-code narrowing (${[...this.config.shelterUsageCodes].join(", ")})` : ""}`,
     );
 
     const warnings: ImporterWarning[] = [];
     const counters: AdapterCounters = {
+      acceptedAfterCapacityFilter: 0,
       skippedRecords: 0,
+      missingOrNonPositiveCapacityCount: 0,
       missingAddressCount: 0,
       missingMunicipalityCount: 0,
+      acceptedWithCoordinatesCount: 0,
+      acceptedWithoutCoordinatesCount: 0,
       missingCoordinatesCount: 0,
+      coordinateParseFailureCount: 0,
+      skipReasonCounts: new Map(),
     };
 
-    const buildings = await this.fetchAllBbrBuildings(warnings);
+    const buildings = await this.fetchAllBbrBuildings(warnings, snapshot);
     console.log(`[importer] datafordeler: fetched ${buildings.length} BBR building records`);
 
-    const eligibleBuildings = buildings.filter((building) => this.isEligibleBuilding(building, warnings, counters));
-    console.log(`[importer] datafordeler: ${eligibleBuildings.length} BBR records passed eligibility checks`);
+    const eligibleBuildings = buildings.filter((building) => this.isEligibleBuilding(building, counters));
+    console.log(
+      `[importer] datafordeler: ${eligibleBuildings.length} BBR records passed status and capacity filtering`,
+    );
 
-    const darHouseNumbers = await this.fetchDarHouseNumbers(eligibleBuildings, warnings);
-    console.log(`[importer] datafordeler: fetched ${darHouseNumbers.size} DAR house-number records`);
+    const darLookupMaps = await this.fetchDarLookups(eligibleBuildings, warnings);
+    console.log(
+      `[importer] datafordeler: fetched ${darLookupMaps.houseNumbers.size} DAR house-number rows, ${darLookupMaps.namedRoads.size} named roads, and ${darLookupMaps.postalCodes.size} postal codes`,
+    );
 
     const records: ImportedShelterRecord[] = [];
 
     for (const building of eligibleBuildings) {
       const record = this.normalizeRecord(
         building,
-        darHouseNumbers.get(building.husnummer ?? ""),
+        darLookupMaps,
         warnings,
         counters,
       );
@@ -388,6 +568,14 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       records.push(record);
     }
 
+    if (counters.missingCoordinatesCount > 0) {
+      warnings.push({
+        level: "warning",
+        code: "bbr_missing_coordinates",
+        message: `${counters.missingCoordinatesCount} accepted records were normalized without usable BBR coordinates.`,
+      });
+    }
+
     console.log(
       `[importer] datafordeler: normalized ${records.length} shelter records, skipped ${counters.skippedRecords}`,
     );
@@ -397,16 +585,27 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       warnings,
       stats: {
         fetchedRecords: buildings.length,
+        acceptedAfterCapacityFilter: counters.acceptedAfterCapacityFilter,
         normalizedRecords: records.length,
         skippedRecords: counters.skippedRecords,
+        missingOrNonPositiveCapacityCount: counters.missingOrNonPositiveCapacityCount,
         missingAddressCount: counters.missingAddressCount,
         missingMunicipalityCount: counters.missingMunicipalityCount,
+        acceptedWithCoordinatesCount: counters.acceptedWithCoordinatesCount,
+        acceptedWithoutCoordinatesCount: counters.acceptedWithoutCoordinatesCount,
         missingCoordinatesCount: counters.missingCoordinatesCount,
+        coordinateParseFailureCount: counters.coordinateParseFailureCount,
+        skipReasonCounts: [...counters.skipReasonCounts.entries()]
+          .map(([code, count]) => ({ code, count }))
+          .sort((left, right) => right.count - left.count),
       },
     };
   }
 
-  private async fetchAllBbrBuildings(warnings: ImporterWarning[]) {
+  private async fetchAllBbrBuildings(
+    warnings: ImporterWarning[],
+    snapshot: { maxPages?: number },
+  ) {
     const nodes: BbrBuildingNode[] = [];
     let after: string | null = null;
     let page = 1;
@@ -459,6 +658,15 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         break;
       }
 
+      if (snapshot.maxPages && page >= snapshot.maxPages) {
+        warnings.push({
+          level: "warning",
+          code: "bbr_max_pages_reached",
+          message: `Stopped the dry-run after ${snapshot.maxPages} BBR pages because --max-pages was set.`,
+        });
+        break;
+      }
+
       after = payload.BBR_Bygning.pageInfo.endCursor;
       page += 1;
     }
@@ -466,20 +674,22 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     return nodes;
   }
 
-  private async fetchDarHouseNumbers(buildings: BbrBuildingNode[], warnings: ImporterWarning[]) {
+  private async fetchDarLookups(
+    buildings: BbrBuildingNode[],
+    warnings: ImporterWarning[],
+  ): Promise<DarLookupMaps> {
     const houseNumberIds = [...new Set(buildings.map((building) => building.husnummer).filter(Boolean))] as string[];
 
     if (houseNumberIds.length === 0) {
-      return new Map<string, DarHouseNumberNode>();
+      return {
+        houseNumbers: new Map(),
+        namedRoads: new Map(),
+        postalCodes: new Map(),
+      };
     }
 
-    const batches: string[][] = [];
-
-    for (let index = 0; index < houseNumberIds.length; index += this.config.pageSize) {
-      batches.push(houseNumberIds.slice(index, index + this.config.pageSize));
-    }
-
-    const map = new Map<string, DarHouseNumberNode>();
+    const batches = chunkValues(houseNumberIds, this.config.pageSize);
+    const houseNumbers = new Map<string, DarHouseNumberNode>();
 
     for (const [batchIndex, batch] of batches.entries()) {
       console.log(
@@ -500,17 +710,20 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
           },
         });
       } catch (error) {
-        throw new Error(
-          `DAR fetch failed on batch ${batchIndex + 1}: ${error instanceof Error ? error.message : "Unknown error."}`,
-        );
+        warnings.push({
+          level: "warning",
+          code: "dar_house_number_batch_failed",
+          message: `DAR house-number batch ${batchIndex + 1} failed and was skipped: ${error instanceof Error ? error.message : "Unknown error."}`,
+        });
+        continue;
       }
 
       for (const edge of payload.DAR_Husnummer.edges) {
-        map.set(edge.node.id_lokalId, edge.node);
+        houseNumbers.set(edge.node.id_lokalId, edge.node);
       }
     }
 
-    const missingIds = houseNumberIds.filter((id) => !map.has(id));
+    const missingIds = houseNumberIds.filter((id) => !houseNumbers.has(id));
 
     if (missingIds.length > 0) {
       warnings.push({
@@ -520,22 +733,133 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       });
     }
 
-    return map;
+    const namedRoadIds = [
+      ...new Set(
+        [...houseNumbers.values()]
+          .map((houseNumber) => houseNumber.navngivenVej)
+          .filter(Boolean),
+      ),
+    ] as string[];
+    const postalCodeIds = [
+      ...new Set(
+        [...houseNumbers.values()]
+          .map((houseNumber) => houseNumber.postnummer)
+          .filter(Boolean),
+      ),
+    ] as string[];
+
+    const namedRoads = await this.fetchDarNamedRoads(namedRoadIds, warnings);
+    const postalCodes = await this.fetchDarPostalCodes(postalCodeIds, warnings);
+
+    return {
+      houseNumbers,
+      namedRoads,
+      postalCodes,
+    };
+  }
+
+  private async fetchDarNamedRoads(roadIds: string[], warnings: ImporterWarning[]) {
+    if (roadIds.length === 0) {
+      return new Map<string, DarNamedRoadNode>();
+    }
+
+    const batches = chunkValues(roadIds, this.config.pageSize);
+    const namedRoads = new Map<string, DarNamedRoadNode>();
+
+    for (const [batchIndex, batch] of batches.entries()) {
+      console.log(
+        `[importer] datafordeler: fetching DAR named-road batch ${batchIndex + 1}/${batches.length}`,
+      );
+
+      let payload: DarNamedRoadsResponse;
+
+      try {
+        payload = await this.darClient.query<DarNamedRoadsResponse, Record<string, unknown>>({
+          operationName: "FetchDarNamedRoads",
+          query: fetchDarNamedRoadsQuery,
+          variables: {
+            first: batch.length,
+            roadIds: batch,
+            registreringstid: this.config.bitemporalTimestamp,
+            virkningstid: this.config.bitemporalTimestamp,
+          },
+        });
+      } catch (error) {
+        warnings.push({
+          level: "warning",
+          code: "dar_named_road_batch_failed",
+          message: `DAR named-road batch ${batchIndex + 1} failed and was skipped: ${error instanceof Error ? error.message : "Unknown error."}`,
+        });
+        continue;
+      }
+
+      for (const edge of payload.DAR_NavngivenVej.edges) {
+        namedRoads.set(edge.node.id_lokalId, edge.node);
+      }
+    }
+
+    return namedRoads;
+  }
+
+  private async fetchDarPostalCodes(postalCodeIds: string[], warnings: ImporterWarning[]) {
+    if (postalCodeIds.length === 0) {
+      return new Map<string, DarPostalCodeNode>();
+    }
+
+    const batches = chunkValues(postalCodeIds, this.config.pageSize);
+    const postalCodes = new Map<string, DarPostalCodeNode>();
+
+    for (const [batchIndex, batch] of batches.entries()) {
+      console.log(
+        `[importer] datafordeler: fetching DAR postal-code batch ${batchIndex + 1}/${batches.length}`,
+      );
+
+      let payload: DarPostalCodesResponse;
+
+      try {
+        payload = await this.darClient.query<DarPostalCodesResponse, Record<string, unknown>>({
+          operationName: "FetchDarPostalCodes",
+          query: fetchDarPostalCodesQuery,
+          variables: {
+            first: batch.length,
+            postalCodeIds: batch,
+            registreringstid: this.config.bitemporalTimestamp,
+            virkningstid: this.config.bitemporalTimestamp,
+          },
+        });
+      } catch (error) {
+        warnings.push({
+          level: "warning",
+          code: "dar_postal_code_batch_failed",
+          message: `DAR postal-code batch ${batchIndex + 1} failed and was skipped: ${error instanceof Error ? error.message : "Unknown error."}`,
+        });
+        continue;
+      }
+
+      for (const edge of payload.DAR_Postnummer.edges) {
+        postalCodes.set(edge.node.id_lokalId, edge.node);
+      }
+    }
+
+    return postalCodes;
   }
 
   private isEligibleBuilding(
     building: BbrBuildingNode,
-    warnings: ImporterWarning[],
     counters: AdapterCounters,
   ) {
     if (building.status !== BBR_ACTIVE_STATUS) {
-      warnings.push({
-        level: "warning",
-        code: "bbr_ineligible_status",
-        message: `Skipped BBR building because status ${building.status ?? "unknown"} is not the official shelter inclusion status ${BBR_ACTIVE_STATUS}.`,
-        reference: building.id_lokalId,
-      });
       counters.skippedRecords += 1;
+      incrementSkipReason(counters, "bbr_ineligible_status");
+      return false;
+    }
+
+    const shelterCapacity = parsePositiveShelterCapacity(building.byg069Sikringsrumpladser);
+
+    if (shelterCapacity === null || shelterCapacity <= 0) {
+      counters.missingOrNonPositiveCapacityCount += 1;
+      counters.skippedRecords += 1;
+      incrementSkipReason(counters, "bbr_missing_or_non_positive_capacity");
       return false;
     }
 
@@ -543,13 +867,8 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       this.config.municipalityCodes.length > 0 &&
       !this.config.municipalityCodes.includes(building.kommunekode)
     ) {
-      warnings.push({
-        level: "warning",
-        code: "bbr_excluded_municipality_filter",
-        message: `Skipped BBR building because municipality ${building.kommunekode} is outside the optional municipality filter.`,
-        reference: building.id_lokalId,
-      });
       counters.skippedRecords += 1;
+      incrementSkipReason(counters, "bbr_excluded_municipality_filter");
       return false;
     }
 
@@ -558,34 +877,26 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       (!building.byg021BygningensAnvendelse ||
         !this.config.shelterUsageCodes.has(building.byg021BygningensAnvendelse))
     ) {
-      warnings.push({
-        level: "warning",
-        code: "bbr_excluded_usage_filter",
-        message: `Skipped BBR building because usage code ${building.byg021BygningensAnvendelse ?? "unknown"} is outside the optional usage-code filter.`,
-        reference: building.id_lokalId,
-      });
       counters.skippedRecords += 1;
+      incrementSkipReason(counters, "bbr_excluded_usage_filter");
       return false;
     }
 
     if (!building.husnummer) {
-      warnings.push({
-        level: "warning",
-        code: "bbr_missing_house_number",
-        message: "Skipped BBR building because no DAR house-number reference was present.",
-        reference: building.id_lokalId,
-      });
       counters.missingAddressCount += 1;
       counters.skippedRecords += 1;
+      incrementSkipReason(counters, "bbr_missing_house_number");
       return false;
     }
+
+    counters.acceptedAfterCapacityFilter += 1;
 
     return true;
   }
 
   private normalizeRecord(
     building: BbrBuildingNode,
-    houseNumber: DarHouseNumberNode | undefined,
+    darLookupMaps: DarLookupMaps,
     warnings: ImporterWarning[],
     counters: AdapterCounters,
   ): ImportedShelterRecord | null {
@@ -595,6 +906,8 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       counters.missingMunicipalityCount += 1;
       return null;
     }
+
+    const houseNumber = darLookupMaps.houseNumbers.get(building.husnummer ?? "");
 
     if (!houseNumber) {
       warnings.push({
@@ -618,10 +931,16 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
       return null;
     }
 
-    const roadName = houseNumber.navngivenVej?.navn?.trim() ?? "";
+    const namedRoad = houseNumber.navngivenVej
+      ? darLookupMaps.namedRoads.get(houseNumber.navngivenVej)
+      : undefined;
+    const postalCodeRecord = houseNumber.postnummer
+      ? darLookupMaps.postalCodes.get(houseNumber.postnummer)
+      : undefined;
+    const roadName = namedRoad?.vejnavn?.trim() ?? "";
     const houseNumberText = houseNumber.husnummertekst?.trim() ?? "";
-    const postalCode = houseNumber.postnummer?.nr?.trim() ?? "";
-    const city = houseNumber.postnummer?.navn?.trim() ?? "";
+    const postalCode = postalCodeRecord?.postnr?.trim() ?? "";
+    const city = postalCodeRecord?.navn?.trim() ?? "";
 
     if (!roadName || !houseNumberText || !postalCode || !city) {
       warnings.push({
@@ -635,16 +954,33 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     }
 
     const addressLine1 = `${roadName} ${houseNumberText}`.trim();
-    warnings.push({
-      level: "warning",
-      code: "bbr_coordinates_deferred",
-      message:
-        "BBR coordinates are temporarily deferred in the real adapter until the GraphQL coordinate field shape is confirmed.",
-      reference: building.id_lokalId,
-    });
-    counters.missingCoordinatesCount += 1;
-
     const canonicalSourceReference = building.id_lokalId;
+    const shelterCapacity = parsePositiveShelterCapacity(building.byg069Sikringsrumpladser);
+
+    if (shelterCapacity === null || shelterCapacity <= 0) {
+      counters.missingOrNonPositiveCapacityCount += 1;
+      incrementSkipReason(counters, "bbr_missing_or_non_positive_capacity");
+      return null;
+    }
+
+    const coordinates = parseBbrCoordinateWkt(building.byg404Koordinat?.wkt ?? null);
+
+    if (coordinates.latitude === null || coordinates.longitude === null) {
+      counters.missingCoordinatesCount += 1;
+      counters.acceptedWithoutCoordinatesCount += 1;
+
+      if (coordinates.isParseFailure) {
+        counters.coordinateParseFailureCount += 1;
+        warnings.push({
+          level: "warning",
+          code: "bbr_coordinate_parse_failed",
+          message: "Accepted shelter record had a malformed BBR coordinate WKT value.",
+          reference: building.id_lokalId,
+        });
+      }
+    } else {
+      counters.acceptedWithCoordinatesCount += 1;
+    }
 
     return {
       municipality,
@@ -658,9 +994,9 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
         addressLine1,
         postalCode,
         city,
-        latitude: null,
-        longitude: null,
-        capacity: 0,
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        capacity: shelterCapacity,
         status: "under_review",
         accessibilityNotes: null,
         summary: buildSummary(),
