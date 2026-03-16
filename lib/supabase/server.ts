@@ -9,9 +9,9 @@ export async function createSupabaseServerClient() {
   }
 
   const cookieStore = await cookies();
-  const { url, anonKey } = getPublicSupabaseEnv();
+  const { url, publishableKey } = getPublicSupabaseEnv();
 
-  return createServerClient(url, anonKey, {
+  return createServerClient(url, publishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

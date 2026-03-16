@@ -12,8 +12,8 @@ export function createSupabaseBrowserClient() {
   }
 
   if (!browserClient) {
-    const { url, anonKey } = getPublicSupabaseEnv();
-    browserClient = createBrowserClient(url, anonKey);
+    const { url, publishableKey } = getPublicSupabaseEnv();
+    browserClient = createBrowserClient(url, publishableKey);
   }
 
   return browserClient;

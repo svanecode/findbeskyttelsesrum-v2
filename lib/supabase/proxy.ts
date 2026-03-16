@@ -14,9 +14,9 @@ export async function updateSupabaseSession(request: NextRequest) {
     request,
   });
 
-  const { url, anonKey } = getPublicSupabaseEnv();
+  const { url, publishableKey } = getPublicSupabaseEnv();
 
-  const supabase = createServerClient(url, anonKey, {
+  const supabase = createServerClient(url, publishableKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
