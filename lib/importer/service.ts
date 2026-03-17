@@ -1,10 +1,19 @@
 import { createAppV2AdminClient } from "@/lib/supabase/app-v2";
+import { getMunicipalitySlugCandidates } from "@/lib/municipalities/metadata";
 
 import type { OfficialSourceAdapter, ImporterSnapshot } from "@/lib/importer/source-adapter";
 import type { ImportedShelterRecord, ImporterRunSummary } from "@/lib/importer/types";
 
 type MunicipalityUpsertResult = {
   id: string;
+};
+
+type MunicipalityRow = {
+  id: string;
+  code: string | null;
+  slug: string;
+  name: string;
+  region_name: string | null;
 };
 
 type ShelterRow = {
@@ -47,12 +56,21 @@ type MissingTransitionDecision = {
   reason: string | null;
 };
 
+type ImportRunProgressState = {
+  recordsSeen: number;
+  recordsUpserted: number;
+  pagesFetched: number;
+  lastSuccessfulPage: number;
+  lastSuccessfulCursor: string | null;
+};
+
 const missingTransitionCoverageThreshold = 0.8;
 const missingTransitionMinimumSeenFloor = 25;
 const importRunWriteRetryAttempts = 4;
 const importRunWriteRetryBaseDelayMs = 500;
+const importRunProgressFlushInterval = 250;
 
-type ImportRunWriteOperation = "insert" | "update" | "checkpoint";
+type ImportRunWriteOperation = "insert" | "update" | "checkpoint" | "progress";
 
 type ImportRunWriteErrorInput = {
   operation: ImportRunWriteOperation;
@@ -186,6 +204,8 @@ function formatImportRunWriteFailure(input: ImportRunWriteErrorInput) {
   const operationLabel =
     input.operation === "insert"
       ? "create"
+      : input.operation === "progress"
+        ? "update progress for"
       : input.operation === "checkpoint"
         ? "checkpoint"
         : "update";
@@ -406,6 +426,56 @@ async function checkpointImportRun(
   }
 }
 
+async function updateImportRunProgress(
+  importRunId: string,
+  payload: {
+    recordsSeen: number;
+    recordsUpserted: number;
+    pagesFetched: number;
+    lastSuccessfulPage: number;
+    lastSuccessfulCursor: string | null;
+  },
+) {
+  const supabase = createAppV2AdminClient();
+  const progressPayload = {
+    records_seen: payload.recordsSeen,
+    records_upserted: payload.recordsUpserted,
+    pages_fetched: payload.pagesFetched,
+    last_successful_page: payload.lastSuccessfulPage,
+    last_successful_cursor: payload.lastSuccessfulCursor,
+  } satisfies Record<string, unknown>;
+
+  const result = await retryImportRunWrite(
+    "progress",
+    () =>
+      supabase
+        .from("import_runs")
+        .update(progressPayload)
+        .eq("id", importRunId)
+        .select("id")
+        .single(),
+    (response) => Boolean(response.error || !response.data),
+    (response) => ({
+      error: response.error ?? new Error("Import run progress update matched no row."),
+      status: response.status,
+      statusText: response.statusText,
+    }),
+  );
+
+  if (result.error || !result.data) {
+    throw new Error(
+      formatImportRunWriteFailure({
+        operation: "progress",
+        importRunId,
+        payload: progressPayload,
+        error: result.error ?? new Error("Import run progress update matched no row."),
+        status: result.status,
+        statusText: result.statusText,
+      }),
+    );
+  }
+}
+
 async function insertAuditEvent(input: {
   actorIdentifier: string;
   entityType: string;
@@ -427,26 +497,76 @@ async function insertAuditEvent(input: {
 
 async function upsertMunicipality(record: ImportedShelterRecord): Promise<MunicipalityUpsertResult> {
   const supabase = createAppV2AdminClient();
-  const { data, error } = await supabase
+  const slugCandidates = getMunicipalitySlugCandidates(record.municipality.slug);
+  const { data: candidates, error: candidateError } = await supabase
     .from("municipalities")
-    .upsert(
-      {
-        slug: record.municipality.slug,
-        name: record.municipality.name,
-        region_name: record.municipality.regionName,
-      },
-      {
-        onConflict: "slug",
-      },
-    )
+    .select("id, code, slug, name, region_name")
+    .or(
+      [`code.eq.${record.municipality.code}`, ...slugCandidates.map((slug) => `slug.eq.${slug}`)].join(","),
+    );
+
+  if (candidateError) {
+    throw new Error(`Could not load municipality candidates for "${record.municipality.code}".`);
+  }
+
+  const rows = (candidates ?? []) as MunicipalityRow[];
+  const canonicalSlug = record.municipality.slug;
+  const fallbackSlug = `kommune-${record.municipality.code}`;
+  const preferredRow =
+    rows.find((row) => row.code === record.municipality.code && row.slug === canonicalSlug) ??
+    rows.find((row) => row.slug === canonicalSlug) ??
+    rows.find((row) => row.code === record.municipality.code) ??
+    rows.find((row) => row.slug === fallbackSlug) ??
+    rows[0];
+
+  const canonicalPayload = {
+    code: record.municipality.code,
+    slug: canonicalSlug,
+    name: record.municipality.name,
+    region_name: record.municipality.regionName,
+  };
+
+  if (!preferredRow) {
+    const { data, error } = await supabase.from("municipalities").insert(canonicalPayload).select("id").single();
+
+    if (error || !data) {
+      throw new Error(`Could not insert municipality "${record.municipality.code}".`);
+    }
+
+    return data as MunicipalityUpsertResult;
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("municipalities")
+    .update(canonicalPayload)
+    .eq("id", preferredRow.id)
     .select("id")
     .single();
 
-  if (error || !data) {
-    throw new Error(`Could not upsert municipality "${record.municipality.slug}".`);
+  if (updateError || !updated) {
+    throw new Error(`Could not canonicalize municipality "${record.municipality.code}".`);
   }
 
-  return data as MunicipalityUpsertResult;
+  const duplicateIds = rows.filter((row) => row.id !== preferredRow.id).map((row) => row.id);
+
+  if (duplicateIds.length > 0) {
+    const shelterUpdate = await supabase
+      .from("shelters")
+      .update({ municipality_id: preferredRow.id })
+      .in("municipality_id", duplicateIds);
+
+    if (shelterUpdate.error) {
+      throw new Error(`Could not reassign duplicate municipality shelters for "${record.municipality.code}".`);
+    }
+
+    const duplicateDelete = await supabase.from("municipalities").delete().in("id", duplicateIds);
+
+    if (duplicateDelete.error) {
+      throw new Error(`Could not delete duplicate municipality rows for "${record.municipality.code}".`);
+    }
+  }
+
+  return updated as MunicipalityUpsertResult;
 }
 
 async function findShelterByCanonicalIdentity(record: ImportedShelterRecord): Promise<ShelterRow | null> {
@@ -808,6 +928,57 @@ export async function runOfficialImporter(input: {
   let pagesFetched = effectiveSnapshot.resumePage ?? 0;
   let lastSuccessfulPage = effectiveSnapshot.resumePage ?? 0;
   let lastSuccessfulCursor = effectiveSnapshot.resumeCursor ?? null;
+  let processedRecords = 0;
+  let recordsSeen = 0;
+  let isSettled = false;
+
+  const progressState = (): ImportRunProgressState => ({
+    recordsSeen,
+    recordsUpserted: processedRecords,
+    pagesFetched,
+    lastSuccessfulPage,
+    lastSuccessfulCursor,
+  });
+
+  const markInterruptedRun = async (reason: string) => {
+    if (isSettled) {
+      return;
+    }
+
+    isSettled = true;
+
+    try {
+      await updateImportRun(importRun.id, {
+        status: "failed",
+        recordsSeen: progressState().recordsSeen,
+        recordsUpserted: progressState().recordsUpserted,
+        errorSummary: reason,
+        pagesFetched: progressState().pagesFetched,
+        lastSuccessfulPage: progressState().lastSuccessfulPage,
+        lastSuccessfulCursor: progressState().lastSuccessfulCursor,
+        missingTransitionsApplied: false,
+        missingTransitionsSkippedReason: "run interrupted before successful completion.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown import-run interruption error.";
+      console.error(`[importer] failed to mark interrupted import run ${importRun.id}: ${message}`);
+    }
+  };
+
+  const handleSigint = () => {
+    void markInterruptedRun(`Importer interrupted by SIGINT for import run "${importRun.id}".`).finally(() => {
+      process.exit(130);
+    });
+  };
+
+  const handleSigterm = () => {
+    void markInterruptedRun(`Importer interrupted by SIGTERM for import run "${importRun.id}".`).finally(() => {
+      process.exit(143);
+    });
+  };
+
+  process.once("SIGINT", handleSigint);
+  process.once("SIGTERM", handleSigterm);
 
   try {
     const fetchResult = await input.adapter.fetchRecords({
@@ -825,9 +996,12 @@ export async function runOfficialImporter(input: {
       },
     });
     const records = fetchResult.records;
+    recordsSeen = records.length;
 
     assertUniqueCanonicalRecords(records);
     assertAdapterSourceConsistency(records, input.adapter);
+
+    await updateImportRunProgress(importRun.id, progressState());
 
     const counters: ImportCounters = {
       inserted: 0,
@@ -855,6 +1029,12 @@ export async function runOfficialImporter(input: {
         importRunId: importRun.id,
         record,
       });
+
+      processedRecords += 1;
+
+      if (processedRecords % importRunProgressFlushInterval === 0 || processedRecords === records.length) {
+        await updateImportRunProgress(importRun.id, progressState());
+      }
     }
 
     const missingTransitionDecision = decideMissingTransitions({
@@ -873,6 +1053,7 @@ export async function runOfficialImporter(input: {
     }
 
     const recordsUpserted = counters.inserted + counters.updated + counters.restored;
+    processedRecords = recordsUpserted;
 
     await updateImportRun(importRun.id, {
       status: "succeeded",
@@ -884,6 +1065,7 @@ export async function runOfficialImporter(input: {
       missingTransitionsApplied: missingTransitionDecision.shouldApply,
       missingTransitionsSkippedReason: missingTransitionDecision.reason,
     });
+    isSettled = true;
 
     if (recordsUpserted > 0 || counters.missing > 0) {
       await insertAuditEvent({
@@ -932,18 +1114,20 @@ export async function runOfficialImporter(input: {
     };
   } catch (error) {
     const errorSummary = error instanceof Error ? error.message : "Unknown importer error.";
-
-    await updateImportRun(importRun.id, {
-      status: "failed",
-      recordsSeen: 0,
-      recordsUpserted: 0,
-      errorSummary,
-      pagesFetched,
-      lastSuccessfulPage,
-      lastSuccessfulCursor,
-      missingTransitionsApplied: false,
-      missingTransitionsSkippedReason: "run failed before successful completion.",
-    });
+    if (!isSettled) {
+      await updateImportRun(importRun.id, {
+        status: "failed",
+        recordsSeen,
+        recordsUpserted: processedRecords,
+        errorSummary,
+        pagesFetched,
+        lastSuccessfulPage,
+        lastSuccessfulCursor,
+        missingTransitionsApplied: false,
+        missingTransitionsSkippedReason: "run failed before successful completion.",
+      });
+      isSettled = true;
+    }
 
     await insertAuditEvent({
       actorIdentifier,
@@ -961,5 +1145,8 @@ export async function runOfficialImporter(input: {
     });
 
     throw error;
+  } finally {
+    process.off("SIGINT", handleSigint);
+    process.off("SIGTERM", handleSigterm);
   }
 }

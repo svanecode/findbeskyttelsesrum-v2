@@ -36,8 +36,9 @@ Document the first official-data importer skeleton that now exists in code.
    - `last_imported_at`
 8. Upserts one `shelter_sources` row per shelter/source identity.
 9. Checkpoints BBR paging progress on `app_v2.import_runs` after each successful page.
-10. Marks previously known shelters for the same canonical source as `missing_from_source` only when the run completed successfully and passed the missing-transition coverage guard.
-11. Finishes the `import_runs` row and writes narrow `audit_events` for:
+10. Flushes apply-phase progress back into `app_v2.import_runs` while shelters and source rows are being written.
+11. Marks previously known shelters for the same canonical source as `missing_from_source` only when the run completed successfully and passed the missing-transition coverage guard.
+12. Finishes the `import_runs` row and writes narrow `audit_events` for:
    - missing records
    - restored records
    - failed runs
@@ -75,6 +76,7 @@ Current normalization behavior:
   - explicit skip when no DAR house-number reference or no usable DAR address exists
 - municipality:
   - driven by BBR `kommunekode`
+  - normalized importer payload now carries municipality code explicitly
   - repo now keeps a bundled municipality metadata map for all Danish municipality codes
   - env can provide explicit `code:slug:name:region` metadata overrides
   - unknown codes still fall back, but now emit one warning per municipality code per run instead of one warning per shelter row
@@ -173,8 +175,10 @@ The Datafordeler path is designed for non-interactive execution:
 Checkpoint behavior:
 - the importer creates an `app_v2.import_runs` row up front
 - after each successful BBR page, it updates `pages_fetched`, `last_successful_page`, and `last_successful_cursor`
+- after fetch/normalization, it also flushes `records_seen` and apply-phase `records_upserted` progress while shelter rows are being written
 - checkpoint writes now use a narrow retry loop for transient Supabase/PostgREST failures
 - checkpoint failures now include the operation type, schema/table, status, payload-key summary, and safe error details in the importer output
+- `SIGINT` and `SIGTERM` now mark the active run as `failed` with the current progress snapshot instead of leaving it stuck in `running`
 - `--max-pages` can be used on a real validation run to verify checkpoint writes without attempting a full nationwide import
 
 Expected behavior:
@@ -189,12 +193,13 @@ Expected behavior:
 - No scheduling or background worker yet.
 - No raw payload storage yet.
 - `source_summary` still remains a compatibility field on `shelters`; the importer sets it only for new rows and does not treat it as an importer-owned update field.
+- `app_v2.municipalities` now uses municipality code as the importer identity anchor; the importer rewrites fallback rows to canonical slug/name values and merges duplicate fallback/canonical municipality rows during import.
 - `DATAFORDELER_MUNICIPALITY_CODES` and BBR usage-code env vars are now optional operational narrowing controls, not required business-rule inputs.
 - Status `6` alone was too broad for a believable shelter set; positive `byg069Sikringsrumpladser` is now part of the effective inclusion rule.
 - The real adapter currently imports only the narrow field subset documented above; it does not claim full BBR/DAR shelter coverage yet.
 - The real adapter is suitable for later GitHub Actions execution, but the workflow itself is not implemented yet.
 - The earlier long-run checkpoint failure was not a schema mismatch in `app_v2.import_runs`; the write path itself was valid, but one opaque checkpoint-write failure could abort the whole run without exposing the real PostgREST error.
-- Before GitHub Actions scheduling is safe, one full real run should complete, checkpoint/resume should be verified at least once, and the missing-transition guard should behave as expected on real `app_v2` counts.
+- Before GitHub Actions scheduling is safe, one full real run should complete with a final `succeeded` or `failed` status, checkpoint/resume should be verified at least once, municipality rows should converge to canonical code-backed rows, and the missing-transition guard should behave as expected on real `app_v2` counts.
 
 ## Next Extension Path
 - Extend the Datafordeler adapter with the next verified BBR/DAR shelter field mappings while keeping the same normalized contract.

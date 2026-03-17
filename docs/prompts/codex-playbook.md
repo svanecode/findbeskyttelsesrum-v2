@@ -34,6 +34,7 @@
 - If touching importer work, do non-JSON Datafordeler responses surface status, content type, and a short safe body preview instead of opaque JSON parse failures?
 - If touching importer work, do long-running runs checkpoint progress explicitly and support resuming from the latest failed run without inventing a broader job system?
 - If touching importer checkpoints or `app_v2.import_runs`, do write failures surface the real table/operation/status context and retry bounded transient failures instead of failing with a generic message?
+- If touching importer finalization, does the run record move out of `running` on success or process interruption, and does `records_seen` / `records_upserted` stay informative during the long apply phase?
 - If touching importer work, are missing/deactivation transitions blocked unless the run completed successfully and cleared the documented coverage guard?
 - If touching live Datafordeler selection logic, does it still enforce positive `byg069Sikringsrumpladser` instead of relying on BBR status `6` alone?
 - If touching DAR enrichment, does the adapter treat `DAR_Husnummer.navngivenVej` and `DAR_Husnummer.postnummer` as relation ids and resolve them explicitly instead of assuming nested objects?
@@ -42,6 +43,7 @@
 - If touching importer work, are any currently deferred official fields documented explicitly instead of being silently guessed?
 - If touching the Datafordeler adapter, is the real inclusion rule still explicit: nationwide by default and BBR `status = 6` as the primary shelter-selection rule?
 - If touching municipality metadata, does the importer use the bundled municipality map first, keep env overrides explicit, and avoid emitting the same fallback warning once per shelter row?
+- If touching municipality writes, does the importer converge fallback and canonical municipality rows by municipality code instead of creating new duplicate municipality rows?
 - If touching the database model, does new v2 work land in `app_v2` without modifying legacy `public` objects unless the task explicitly requires it?
 - If touching Supabase queries or writes, is schema targeting explicit for `app_v2` and are any required API-schema exposure steps documented?
 - If touching server-rendered public `app_v2` reads, do they keep working cleanly during validation when the anon key is missing, without exposing service-role behavior to the browser?

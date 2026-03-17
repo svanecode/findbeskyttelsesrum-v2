@@ -354,6 +354,7 @@ function parseMunicipalityOverrides(raw: string | undefined) {
       return [
         code,
         {
+          code,
           slug,
           name,
           regionName: regionName || null,
@@ -1108,6 +1109,7 @@ export class DatafordelerOfficialSourceAdapter implements OfficialSourceAdapter 
     }
 
     return {
+      code,
       slug: `kommune-${code}`,
       name: `Municipality ${code}`,
       regionName: null,

@@ -3,6 +3,7 @@ export type ImportLifecycleState = "active" | "missing_from_source" | "suppresse
 export type ImportedShelterStatus = "active" | "temporarily_closed" | "under_review";
 
 export type ImportedShelterMunicipality = {
+  code: string;
   slug: string;
   name: string;
   regionName: string | null;

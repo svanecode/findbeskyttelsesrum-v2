@@ -4,6 +4,7 @@
 - `app_v2.municipalities`
   - Public municipality records used for routing and grouping.
   - Runtime reads now canonicalize legacy fallback rows like `kommune-0175` / `Municipality 0175` through a bundled municipality metadata map so the current imported dataset can render real names and route slugs before the next import refresh.
+  - Importer writes now anchor municipality identity on municipality `code` so fallback and canonical rows can converge on one canonical municipality record over time.
 - `app_v2.shelters`
   - Public shelter records shown to end users.
 - `app_v2.shelter_sources`
@@ -32,6 +33,7 @@
 - Manual overrides must remain separate from imported source data.
 - Public shelter detail reads use active override values first, then imported values.
 - Use slugs for municipality and shelter routes.
+- For importer writes, municipality code is the stable municipality identity; slug remains the public route key.
 
 ## Near-Term Query Paths
 - Featured shelter list for the homepage.

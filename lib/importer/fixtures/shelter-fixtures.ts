@@ -6,6 +6,7 @@ const fixtureSourceUrl = "https://example.com/official-fixture-register";
 const baselineRecords: ImportedShelterRecord[] = [
   {
     municipality: {
+      code: "0101",
       slug: "kobenhavn",
       name: "Copenhagen",
       regionName: "Capital Region of Denmark",
@@ -39,6 +40,7 @@ const baselineRecords: ImportedShelterRecord[] = [
   },
   {
     municipality: {
+      code: "0101",
       slug: "kobenhavn",
       name: "Copenhagen",
       regionName: "Capital Region of Denmark",
@@ -72,6 +74,7 @@ const baselineRecords: ImportedShelterRecord[] = [
   },
   {
     municipality: {
+      code: "0147",
       slug: "frederiksberg",
       name: "Frederiksberg",
       regionName: "Capital Region of Denmark",
@@ -109,6 +112,7 @@ const followUpRecords: ImportedShelterRecord[] = [
   baselineRecords[0],
   {
     municipality: {
+      code: "0101",
       slug: "kobenhavn",
       name: "Copenhagen",
       regionName: "Capital Region of Denmark",
@@ -142,6 +146,7 @@ const followUpRecords: ImportedShelterRecord[] = [
   },
   {
     municipality: {
+      code: "0147",
       slug: "frederiksberg",
       name: "Frederiksberg",
       regionName: "Capital Region of Denmark",
