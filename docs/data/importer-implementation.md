@@ -176,6 +176,14 @@ Checkpoint behavior:
 - the importer creates an `app_v2.import_runs` row up front
 - after each successful BBR page, it updates `pages_fetched`, `last_successful_page`, and `last_successful_cursor`
 - after fetch/normalization, it also flushes `records_seen` and apply-phase `records_upserted` progress while shelter rows are being written
+- before apply-phase writes begin, it preloads existing shelters for the canonical source into an in-memory map keyed by `canonical_source_reference`
+- municipality convergence now caches one canonical municipality result per municipality code for the duration of a run instead of reloading municipality candidates for every shelter row
+- importer output now logs apply-phase milestones explicitly:
+  - fetch complete
+  - baseline upserts starting
+  - periodic processed-record progress
+  - missing-record handling
+  - final import-run completion
 - checkpoint writes now use a narrow retry loop for transient Supabase/PostgREST failures
 - checkpoint failures now include the operation type, schema/table, status, payload-key summary, and safe error details in the importer output
 - `SIGINT` and `SIGTERM` now mark the active run as `failed` with the current progress snapshot instead of leaving it stuck in `running`
@@ -194,11 +202,13 @@ Expected behavior:
 - No raw payload storage yet.
 - `source_summary` still remains a compatibility field on `shelters`; the importer sets it only for new rows and does not treat it as an importer-owned update field.
 - `app_v2.municipalities` now uses municipality code as the importer identity anchor; the importer rewrites fallback rows to canonical slug/name values and merges duplicate fallback/canonical municipality rows during import.
+- Long real runs should not overlap. Running a second real importer pass while one import is already applying shelter writes can create row-level contention and make the second run look stalled even when the first run is progressing normally.
 - `DATAFORDELER_MUNICIPALITY_CODES` and BBR usage-code env vars are now optional operational narrowing controls, not required business-rule inputs.
 - Status `6` alone was too broad for a believable shelter set; positive `byg069Sikringsrumpladser` is now part of the effective inclusion rule.
 - The real adapter currently imports only the narrow field subset documented above; it does not claim full BBR/DAR shelter coverage yet.
 - The real adapter is suitable for later GitHub Actions execution, but the workflow itself is not implemented yet.
 - The earlier long-run checkpoint failure was not a schema mismatch in `app_v2.import_runs`; the write path itself was valid, but one opaque checkpoint-write failure could abort the whole run without exposing the real PostgREST error.
+- The later apply-phase stall symptom was primarily caused by apply-phase query amplification: municipality convergence and canonical shelter lookup were still running per shelter row. The importer now preloads existing shelters once per run and caches municipality convergence by code.
 - Before GitHub Actions scheduling is safe, one full real run should complete with a final `succeeded` or `failed` status, checkpoint/resume should be verified at least once, municipality rows should converge to canonical code-backed rows, and the missing-transition guard should behave as expected on real `app_v2` counts.
 
 ## Next Extension Path

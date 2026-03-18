@@ -69,6 +69,7 @@ const missingTransitionMinimumSeenFloor = 25;
 const importRunWriteRetryAttempts = 4;
 const importRunWriteRetryBaseDelayMs = 500;
 const importRunProgressFlushInterval = 250;
+const shelterPreloadBatchSize = 1000;
 
 type ImportRunWriteOperation = "insert" | "update" | "checkpoint" | "progress";
 
@@ -495,7 +496,16 @@ async function insertAuditEvent(input: {
   });
 }
 
-async function upsertMunicipality(record: ImportedShelterRecord): Promise<MunicipalityUpsertResult> {
+async function upsertMunicipalityWithCache(
+  record: ImportedShelterRecord,
+  cache: Map<string, MunicipalityUpsertResult>,
+): Promise<MunicipalityUpsertResult> {
+  const cached = cache.get(record.municipality.code);
+
+  if (cached) {
+    return cached;
+  }
+
   const supabase = createAppV2AdminClient();
   const slugCandidates = getMunicipalitySlugCandidates(record.municipality.slug);
   const { data: candidates, error: candidateError } = await supabase
@@ -533,7 +543,10 @@ async function upsertMunicipality(record: ImportedShelterRecord): Promise<Munici
       throw new Error(`Could not insert municipality "${record.municipality.code}".`);
     }
 
-    return data as MunicipalityUpsertResult;
+    const inserted = data as MunicipalityUpsertResult;
+    cache.set(record.municipality.code, inserted);
+
+    return inserted;
   }
 
   const { data: updated, error: updateError } = await supabase
@@ -566,24 +579,14 @@ async function upsertMunicipality(record: ImportedShelterRecord): Promise<Munici
     }
   }
 
-  return updated as MunicipalityUpsertResult;
+  const result = updated as MunicipalityUpsertResult;
+  cache.set(record.municipality.code, result);
+
+  return result;
 }
 
-async function findShelterByCanonicalIdentity(record: ImportedShelterRecord): Promise<ShelterRow | null> {
+async function findShelterByLegacySource(record: ImportedShelterRecord): Promise<ShelterRow | null> {
   const supabase = createAppV2AdminClient();
-  const canonicalResponse = await supabase
-    .from("shelters")
-    .select(
-      "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
-    )
-    .eq("canonical_source_name", record.source.canonicalSourceName)
-    .eq("canonical_source_reference", record.source.canonicalSourceReference)
-    .maybeSingle();
-
-  if (canonicalResponse.data) {
-    return canonicalResponse.data as ShelterRow;
-  }
-
   const legacySourceResponse = await supabase
     .from("shelter_sources")
     .select("id, shelter_id, source_name, source_reference")
@@ -607,21 +610,49 @@ async function findShelterByCanonicalIdentity(record: ImportedShelterRecord): Pr
   return shelterResponse.data ? (shelterResponse.data as ShelterRow) : null;
 }
 
+async function loadExistingSheltersByCanonicalSource(canonicalSourceName: string) {
+  const supabase = createAppV2AdminClient();
+  const byReference = new Map<string, ShelterRow>();
+  let from = 0;
+
+  while (true) {
+    const to = from + shelterPreloadBatchSize - 1;
+    const response = await supabase
+      .from("shelters")
+      .select(
+        "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
+      )
+      .eq("canonical_source_name", canonicalSourceName)
+      .range(from, to);
+
+    if (response.error) {
+      throw new Error(`Could not preload existing shelters for source "${canonicalSourceName}".`);
+    }
+
+    const rows = (response.data ?? []) as ShelterRow[];
+
+    for (const row of rows) {
+      if (row.canonical_source_reference) {
+        byReference.set(row.canonical_source_reference, row);
+      }
+    }
+
+    if (rows.length < shelterPreloadBatchSize) {
+      break;
+    }
+
+    from += shelterPreloadBatchSize;
+  }
+
+  return byReference;
+}
+
 async function upsertShelterSource(input: {
   shelterId: string;
   importRunId: string;
   record: ImportedShelterRecord;
 }) {
   const supabase = createAppV2AdminClient();
-  const existingResponse = await supabase
-    .from("shelter_sources")
-    .select("id, shelter_id, source_name, source_reference")
-    .eq("shelter_id", input.shelterId)
-    .eq("source_name", input.record.source.sourceName)
-    .eq("source_reference", input.record.source.sourceReference)
-    .limit(1)
-    .maybeSingle();
-
   const payload = {
     shelter_id: input.shelterId,
     import_run_id: input.importRunId,
@@ -634,12 +665,13 @@ async function upsertShelterSource(input: {
     notes: input.record.source.notes,
   };
 
-  if (existingResponse.data) {
-    await supabase.from("shelter_sources").update(payload).eq("id", existingResponse.data.id);
-    return;
-  }
+  const result = await supabase.from("shelter_sources").upsert(payload, {
+    onConflict: "shelter_id,source_name,source_reference",
+  });
 
-  await supabase.from("shelter_sources").insert(payload);
+  if (result.error) {
+    throw new Error(`Could not upsert shelter source "${input.record.source.sourceReference}".`);
+  }
 }
 
 async function upsertShelterBaseline(input: {
@@ -648,9 +680,12 @@ async function upsertShelterBaseline(input: {
   importTimestamp: string;
   actorIdentifier: string;
   counters: ImportCounters;
+  existingSheltersByReference: Map<string, ShelterRow>;
 }) {
   const supabase = createAppV2AdminClient();
-  const existing = await findShelterByCanonicalIdentity(input.record);
+  const existing =
+    input.existingSheltersByReference.get(input.record.source.canonicalSourceReference) ??
+    (await findShelterByLegacySource(input.record));
   const desiredBaseline = {
     slug: input.record.shelter.slug,
     municipality_id: input.municipalityId,
@@ -688,6 +723,8 @@ async function upsertShelterBaseline(input: {
     }
 
     input.counters.inserted += 1;
+
+    input.existingSheltersByReference.set(input.record.source.canonicalSourceReference, insertResponse.data as ShelterRow);
 
     return insertResponse.data as ShelterRow;
   }
@@ -727,6 +764,11 @@ async function upsertShelterBaseline(input: {
   } else {
     input.counters.unchanged += 1;
   }
+
+  input.existingSheltersByReference.set(
+    input.record.source.canonicalSourceReference,
+    updateResponse.data as ShelterRow,
+  );
 
   return updateResponse.data as ShelterRow;
 }
@@ -1001,6 +1043,10 @@ export async function runOfficialImporter(input: {
     assertUniqueCanonicalRecords(records);
     assertAdapterSourceConsistency(records, input.adapter);
 
+    console.info(
+      `[importer] apply: fetch complete importRunId=${importRun.id} recordsSeen=${recordsSeen} pagesFetched=${pagesFetched}`,
+    );
+
     await updateImportRunProgress(importRun.id, progressState());
 
     const counters: ImportCounters = {
@@ -1011,17 +1057,24 @@ export async function runOfficialImporter(input: {
       missing: 0,
     };
     const seenReferences = new Set<string>();
+    const municipalityCache = new Map<string, MunicipalityUpsertResult>();
+    const existingSheltersByReference = await loadExistingSheltersByCanonicalSource(input.adapter.sourceName);
+
+    console.info(
+      `[importer] apply: starting baseline upserts importRunId=${importRun.id} records=${records.length} preloadedExistingShelters=${existingSheltersByReference.size}`,
+    );
 
     for (const record of records) {
       seenReferences.add(record.source.canonicalSourceReference);
 
-      const municipality = await upsertMunicipality(record);
+      const municipality = await upsertMunicipalityWithCache(record, municipalityCache);
       const shelter = await upsertShelterBaseline({
         record,
         municipalityId: municipality.id,
         importTimestamp,
         actorIdentifier,
         counters,
+        existingSheltersByReference,
       });
 
       await upsertShelterSource({
@@ -1033,9 +1086,16 @@ export async function runOfficialImporter(input: {
       processedRecords += 1;
 
       if (processedRecords % importRunProgressFlushInterval === 0 || processedRecords === records.length) {
+        console.info(
+          `[importer] apply: progress importRunId=${importRun.id} processed=${processedRecords}/${records.length} inserted=${counters.inserted} updated=${counters.updated} unchanged=${counters.unchanged} restored=${counters.restored}`,
+        );
         await updateImportRunProgress(importRun.id, progressState());
       }
     }
+
+    console.info(
+      `[importer] apply: baseline upserts complete importRunId=${importRun.id} processed=${processedRecords} inserted=${counters.inserted} updated=${counters.updated} unchanged=${counters.unchanged} restored=${counters.restored}`,
+    );
 
     const missingTransitionDecision = decideMissingTransitions({
       resumedFromImportRunId: resumableImportRun?.id ?? null,
@@ -1044,6 +1104,7 @@ export async function runOfficialImporter(input: {
     });
 
     if (missingTransitionDecision.shouldApply) {
+      console.info(`[importer] apply: marking missing shelters importRunId=${importRun.id}`);
       counters.missing = await markMissingShelters({
         canonicalSourceName: input.adapter.sourceName,
         seenReferences,
@@ -1054,6 +1115,10 @@ export async function runOfficialImporter(input: {
 
     const recordsUpserted = counters.inserted + counters.updated + counters.restored;
     processedRecords = recordsUpserted;
+
+    console.info(
+      `[importer] apply: finalizing import run importRunId=${importRun.id} recordsUpserted=${recordsUpserted} missing=${counters.missing} missingTransitionsApplied=${missingTransitionDecision.shouldApply}`,
+    );
 
     await updateImportRun(importRun.id, {
       status: "succeeded",
@@ -1114,6 +1179,9 @@ export async function runOfficialImporter(input: {
     };
   } catch (error) {
     const errorSummary = error instanceof Error ? error.message : "Unknown importer error.";
+    console.error(
+      `[importer] apply: failed importRunId=${importRun.id} recordsSeen=${recordsSeen} recordsUpserted=${processedRecords} message=${errorSummary}`,
+    );
     if (!isSettled) {
       await updateImportRun(importRun.id, {
         status: "failed",
