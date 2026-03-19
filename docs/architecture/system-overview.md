@@ -24,7 +24,7 @@
 8. Shelter detail pages load one public shelter by slug, derive trust metadata from the connected source rows, and expose page metadata from the same public record.
 9. Municipality pages load one municipality by slug together with its public shelters and derive landing-page card trust fields from the same public shelter/source tables.
 10. Public issue reports are submitted from shelter detail pages through a server action that validates input and writes only to `app_v2.shelter_reports` via a controlled server-side client.
-11. `/admin` uses Supabase Auth sessions plus an allowlist of approved admin email addresses, while moderation reads and writes remain server-only.
+11. `/admin` uses Supabase Auth sessions plus an allowlist of approved admin email addresses, while moderation reads and writes remain server-only through the shared Supabase write secret.
 12. Manual shelter overrides are stored separately from imported records and applied as effective values on the public shelter detail, municipality, and search read paths when an active override exists.
 13. Imported shelter lifecycle is modeled on `app_v2.shelters` through `import_state`, `last_seen_at`, `last_imported_at`, and canonical official source identity fields.
 14. The first importer skeleton now lives in `lib/importer`, includes both a fixture adapter and a narrow real Datafordeler BBR + DAR adapter, and now targets `app_v2` rather than the legacy `public` schema.

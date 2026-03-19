@@ -19,7 +19,7 @@
 - If touching shelter details, does the page surface source provenance and freshness clearly from public data?
 - If touching municipality pages, does the page work as a standalone landing page and not just a raw shelter list?
 - If touching public reporting, is the write path validated on the server and isolated to `shelter_reports`?
-- If touching `/admin`, is service-role usage server-only and is auth enforced with a real authenticated admin check?
+- If touching `/admin`, are Supabase write-key operations server-only and is auth enforced with a real authenticated admin check?
 - If touching overrides, is the effective-value precedence explicit and are imported values still traceable?
 - If touching overrides, does the change use `shelter_overrides` and avoid recreating the old `shelter_status_overrides` naming?
 - If touching overrides, does the change stay within the documented field scope (`name`, `address_line1`, `postal_code`, `city`, `capacity`, `status`, `accessibility_notes`, `summary`) unless a migration explicitly expands it?
@@ -50,7 +50,7 @@
 - If touching importer automation, does the workflow prevent overlapping runs and preserve a bounded manual validation mode with `dry_run`, `max_pages`, or `resume_latest` instead of inventing a second control plane?
 - If touching the database model, does new v2 work land in `app_v2` without modifying legacy `public` objects unless the task explicitly requires it?
 - If touching Supabase queries or writes, is schema targeting explicit for `app_v2` and are any required API-schema exposure steps documented?
-- If touching server-rendered public `app_v2` reads, do they keep working cleanly during validation when the anon key is missing, without exposing service-role behavior to the browser?
+- If touching server-rendered public `app_v2` reads, do they keep working cleanly during validation when the anon key is missing, without exposing server write-key behavior to the browser?
 - If touching public `app_v2` reads, do sparse imported records still render honest fallback copy instead of blank summaries or trust sections?
 - If touching municipality reads, do canonical slugs still resolve cleanly even when current `app_v2` rows still carry older fallback municipality slugs or names?
 - If touching navigation, are real links used for navigation semantics instead of rendering links through button primitives?

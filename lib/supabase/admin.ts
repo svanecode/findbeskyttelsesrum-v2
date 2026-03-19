@@ -1,16 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 
+import { getSupabaseWriteEnv } from "@/lib/supabase/env";
+
 export function createSupabaseAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serverKey =
-    process.env.SUPABASE_SECRET_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const { url, secretKey } = getSupabaseWriteEnv();
 
-  if (!url || !serverKey) {
-    throw new Error("Missing Supabase admin environment variables.");
-  }
-
-  return createClient(url, serverKey, {
+  return createClient(url, secretKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

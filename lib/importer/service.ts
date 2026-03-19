@@ -72,10 +72,20 @@ const importRunProgressFlushInterval = 250;
 const shelterPreloadBatchSize = 1000;
 
 type ImportRunWriteOperation = "insert" | "update" | "checkpoint" | "progress";
+type TableWriteOperation = "upsert";
 
 type ImportRunWriteErrorInput = {
   operation: ImportRunWriteOperation;
   importRunId?: string;
+  payload: Record<string, unknown>;
+  error: unknown;
+  status?: number;
+  statusText?: string;
+};
+
+type TableWriteErrorInput = {
+  tableName: string;
+  operation: TableWriteOperation;
   payload: Record<string, unknown>;
   error: unknown;
   status?: number;
@@ -238,6 +248,32 @@ function formatImportRunWriteFailure(input: ImportRunWriteErrorInput) {
   return summary;
 }
 
+function formatTableWriteFailure(input: TableWriteErrorInput) {
+  const details =
+    typeof input.error === "object" && input.error
+      ? {
+          code: "code" in input.error ? input.error.code : undefined,
+          message: "message" in input.error ? input.error.message : undefined,
+          details: "details" in input.error ? input.error.details : undefined,
+          hint: "hint" in input.error ? input.error.hint : undefined,
+        }
+      : {
+          message: input.error instanceof Error ? input.error.message : String(input.error),
+        };
+
+  return [
+    `Could not ${input.operation} ${input.tableName}.`,
+    `table=${input.tableName}`,
+    `operation=${input.operation}`,
+    input.status ? `status=${input.status}` : null,
+    input.statusText ? `statusText=${input.statusText}` : null,
+    `payload=${summarizeImportRunPayload(input.payload)}`,
+    `error=${JSON.stringify(details)}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 async function retryImportRunWrite<T>(
   operation: ImportRunWriteOperation,
   execute: () => PromiseLike<T>,
@@ -269,6 +305,44 @@ async function retryImportRunWrite<T>(
     const delayMs = importRunWriteRetryBaseDelayMs * 2 ** (attempt - 1);
     console.warn(
       `[importer] retrying import run ${operation} after transient failure attempt=${attempt} status=${failure.status ?? "unknown"} statusText=${failure.statusText ?? "unknown"}`,
+    );
+    await sleep(delayMs);
+  }
+
+  return execute();
+}
+
+async function retryTableWrite<T>(
+  operation: TableWriteOperation,
+  execute: () => PromiseLike<T>,
+  shouldRetry: (result: T) => boolean,
+  getFailureDetails: (result: T) => { error: unknown; status?: number; statusText?: string },
+) {
+  let attempt = 0;
+
+  while (attempt < importRunWriteRetryAttempts) {
+    const result = await execute();
+
+    if (!shouldRetry(result)) {
+      return result;
+    }
+
+    attempt += 1;
+    const failure = getFailureDetails(result);
+
+    if (
+      attempt >= importRunWriteRetryAttempts ||
+      !isTransientImportRunWriteFailure({
+        status: failure.status,
+        error: failure.error,
+      })
+    ) {
+      return result;
+    }
+
+    const delayMs = importRunWriteRetryBaseDelayMs * 2 ** (attempt - 1);
+    console.warn(
+      `[importer] retrying ${operation} after transient failure attempt=${attempt} status=${failure.status ?? "unknown"} statusText=${failure.statusText ?? "unknown"}`,
     );
     await sleep(delayMs);
   }
@@ -665,12 +739,85 @@ async function upsertShelterSource(input: {
     notes: input.record.source.notes,
   };
 
-  const result = await supabase.from("shelter_sources").upsert(payload, {
-    onConflict: "shelter_id,source_name,source_reference",
-  });
+  const existingSourceResponse = await retryTableWrite(
+    "upsert",
+    () =>
+      supabase
+        .from("shelter_sources")
+        .select("id, shelter_id")
+        .eq("source_name", input.record.source.sourceName)
+        .eq("source_reference", input.record.source.sourceReference)
+        .limit(1)
+        .maybeSingle(),
+    (response) => Boolean(response.error),
+    (response) => ({
+      error: response.error ?? new Error("Shelter source lookup returned an unexpected failure."),
+      status: response.status,
+      statusText: response.statusText,
+    }),
+  );
 
-  if (result.error) {
-    throw new Error(`Could not upsert shelter source "${input.record.source.sourceReference}".`);
+  if (existingSourceResponse.error) {
+    throw new Error(
+      formatTableWriteFailure({
+        tableName: "app_v2.shelter_sources",
+        operation: "upsert",
+        payload,
+        error: existingSourceResponse.error,
+        status: existingSourceResponse.status,
+        statusText: existingSourceResponse.statusText,
+      }),
+    );
+  }
+
+  const existingSource = existingSourceResponse.data as { id: string; shelter_id: string } | null;
+
+  const writeResult = existingSource
+    ? await retryTableWrite(
+        "upsert",
+        () =>
+          supabase
+            .from("shelter_sources")
+            .update(payload)
+            .eq("id", existingSource.id)
+            .select("id")
+            .single(),
+        (response) => Boolean(response.error || !response.data),
+        (response) => ({
+          error: response.error ?? new Error("Shelter source update matched no row."),
+          status: response.status,
+          statusText: response.statusText,
+        }),
+      )
+    : await retryTableWrite(
+        "upsert",
+        () =>
+          supabase
+            .from("shelter_sources")
+            .upsert(payload, {
+              onConflict: "shelter_id,source_name,source_reference",
+            })
+            .select("id")
+            .single(),
+        (response) => Boolean(response.error || !response.data),
+        (response) => ({
+          error: response.error ?? new Error("Shelter source upsert returned no row."),
+          status: response.status,
+          statusText: response.statusText,
+        }),
+      );
+
+  if (writeResult.error || !writeResult.data) {
+    throw new Error(
+      formatTableWriteFailure({
+        tableName: "app_v2.shelter_sources",
+        operation: "upsert",
+        payload,
+        error: writeResult.error ?? new Error("Shelter source write returned no row."),
+        status: writeResult.status,
+        statusText: writeResult.statusText,
+      }),
+    );
   }
 }
 

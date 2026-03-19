@@ -179,8 +179,6 @@ Configure these repository or environment secrets before enabling the workflow:
   - `DATAFORDELER_BBR_SHELTER_USAGE_CODES`
   - `DATAFORDELER_BBR_USAGE_CODES`
   - `DATAFORDELER_BITEMPORAL_TIMESTAMP`
-- legacy elevated-key fallback only if a new secret key is not available yet
-  - `SUPABASE_SERVICE_ROLE_KEY`
 
 ## Long-run Safety Rules
 - A failed run never applies missing/deactivation transitions.
@@ -240,9 +238,10 @@ Expected behavior:
 - `DATAFORDELER_MUNICIPALITY_CODES` and BBR usage-code env vars are now optional operational narrowing controls, not required business-rule inputs.
 - Status `6` alone was too broad for a believable shelter set; positive `byg069Sikringsrumpladser` is now part of the effective inclusion rule.
 - The real adapter currently imports only the narrow field subset documented above; it does not claim full BBR/DAR shelter coverage yet.
-- The real adapter is suitable for later GitHub Actions execution, but the workflow itself is not implemented yet.
+- The real adapter is now scheduled and manually runnable through one explicit GitHub Actions workflow that calls the same importer CLI used locally.
 - The earlier long-run checkpoint failure was not a schema mismatch in `app_v2.import_runs`; the write path itself was valid, but one opaque checkpoint-write failure could abort the whole run without exposing the real PostgREST error.
 - The later apply-phase stall symptom was primarily caused by apply-phase query amplification: municipality convergence and canonical shelter lookup were still running per shelter row. The importer now preloads existing shelters once per run and caches municipality convergence by code.
+- The `app_v2.shelter_sources` path now resolves existing lineage rows by `source_name` + `source_reference` before writing, retries transient failures, and emits table/status/error diagnostics if the write still fails.
 - Before GitHub Actions scheduling is safe, one full real run should complete with a final `succeeded` or `failed` status, checkpoint/resume should be verified at least once, municipality rows should converge to canonical code-backed rows, and the missing-transition guard should behave as expected on real `app_v2` counts.
 
 ## Next Extension Path
