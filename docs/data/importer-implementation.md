@@ -20,6 +20,8 @@ Document the first official-data importer skeleton that now exists in code.
   - Core import-run, match, upsert, lifecycle, and audit logic.
 - `scripts/importer/run.ts`
   - Local CLI entry point.
+- `.github/workflows/datafordeler-importer.yml`
+  - Scheduled and manually dispatched importer workflow for GitHub Actions.
 
 ## What The Skeleton Does
 1. Creates an `import_runs` row with `running` status.
@@ -133,6 +135,14 @@ npm run importer:datafordeler -- --dry-run --max-pages 25
 npm run importer:datafordeler -- --resume-latest
 ```
 
+GitHub Actions now wraps the same CLI through:
+- `.github/workflows/datafordeler-importer.yml`
+- scheduled run: daily at `01:15 UTC`
+- manual run: `workflow_dispatch` with:
+  - `dry_run`
+  - `max_pages`
+  - `resume_latest`
+
 The Datafordeler path is designed for non-interactive execution:
 - all configuration is env-var driven
 - console output is line-oriented and useful for CI logs
@@ -147,6 +157,30 @@ The Datafordeler path is designed for non-interactive execution:
 - A capped live dry-run can now complete end-to-end with the current DAR query shape
 - A capped live dry-run can now complete end-to-end with coordinates included in the normalized output when BBR provides valid WKT
 - DAR relation-id `in` queries are now hard-capped at `100` ids per batch because larger lists trigger live Datafordeler `400` failures
+- GitHub Actions uses workflow concurrency to ensure only one importer run executes at a time
+- the workflow writes a short Actions step summary from the importer summary JSON instead of scraping stdout
+
+## GitHub Actions Secrets
+Configure these repository or environment secrets before enabling the workflow:
+
+- required
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `SUPABASE_SECRET_KEY`
+  - `DATAFORDELER_API_KEY`
+- recommended explicit overrides
+  - `DATAFORDELER_BBR_GRAPHQL_URL`
+  - `DATAFORDELER_DAR_GRAPHQL_URL`
+  - `DATAFORDELER_REQUEST_TIMEOUT_MS`
+  - `DATAFORDELER_PAGE_SIZE`
+  - `DATAFORDELER_DAR_ACTIVE_STATUSES`
+- optional narrowing or metadata overrides
+  - `DATAFORDELER_MUNICIPALITY_CODES`
+  - `DATAFORDELER_MUNICIPALITY_METADATA`
+  - `DATAFORDELER_BBR_SHELTER_USAGE_CODES`
+  - `DATAFORDELER_BBR_USAGE_CODES`
+  - `DATAFORDELER_BITEMPORAL_TIMESTAMP`
+- legacy elevated-key fallback only if a new secret key is not available yet
+  - `SUPABASE_SERVICE_ROLE_KEY`
 
 ## Long-run Safety Rules
 - A failed run never applies missing/deactivation transitions.

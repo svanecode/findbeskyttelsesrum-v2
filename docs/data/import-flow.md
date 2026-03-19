@@ -35,13 +35,18 @@ Track how official baseline data enters the system, how admin corrections stay s
 - `app_v2.import_runs` now also receives apply-phase progress updates after normalization so interrupted long runs do not stay opaque.
 - Apply-phase logs now call out fetch completion, baseline-upsert start, periodic processed-record progress, missing handling, and finalization so a long real run does not appear to hang silently after normalization.
 - Apply-phase shelter matching now preloads existing shelters once per canonical source and caches municipality convergence by municipality code for the duration of the run.
+- GitHub Actions now runs the same importer CLI through one explicit workflow with schedule plus `workflow_dispatch`, rather than a separate importer code path.
 - CLI entry points:
   - `npm run importer:fixture -- <snapshot>`
   - `npm run importer:datafordeler`
   - `npm run importer:datafordeler -- --dry-run`
   - `npm run importer:datafordeler -- --dry-run --max-pages 25`
   - `npm run importer:datafordeler -- --max-pages 25`
-  - `npm run importer:datafordeler -- --resume-latest`
+- `npm run importer:datafordeler -- --resume-latest`
+- GitHub Actions manual run:
+  - choose `dry_run=true` for source validation without writes
+  - set `max_pages` for bounded validation runs
+  - set `resume_latest=true` only when continuing a failed real run
 - The skeleton currently proves:
   - canonical source identity matching
   - importer-owned field upserts
@@ -81,3 +86,4 @@ Track how official baseline data enters the system, how admin corrections stay s
 - A single transient checkpoint-write failure should not stay opaque; `app_v2.import_runs` writes must emit the real table/operation/status context and retry bounded transient failures before the run aborts.
 - Municipality writes must converge on one canonical row per municipality code instead of allowing canonical and fallback municipality rows to coexist indefinitely.
 - Real validation imports should run one at a time; overlapping real runs against the same `app_v2` shelter set can create row-level contention that looks like an apply-phase stall.
+- The GitHub Actions workflow uses a single concurrency group so a scheduled run and a manual run cannot overlap accidentally.

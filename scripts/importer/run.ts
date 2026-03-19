@@ -1,3 +1,5 @@
+import { writeFile } from "node:fs/promises";
+
 import { FixtureOfficialSourceAdapter } from "@/lib/importer/adapters/fixture-adapter";
 import { DatafordelerOfficialSourceAdapter } from "@/lib/importer/adapters/datafordeler-official-adapter";
 import { fixtureSnapshotNames } from "@/lib/importer/fixtures/shelter-fixtures";
@@ -40,6 +42,21 @@ function getFixtureSnapshotName() {
   }
 
   return snapshotName;
+}
+
+async function writeSummaryFileIfConfigured(summary: unknown) {
+  const summaryPath = process.env.IMPORTER_SUMMARY_PATH;
+
+  if (!summaryPath) {
+    return;
+  }
+
+  try {
+    await writeFile(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown summary-file write error.";
+    console.warn(`[importer] warning could_not_write_summary_file: ${message}`);
+  }
 }
 
 async function main() {
@@ -87,6 +104,7 @@ async function main() {
     console.warn(`[importer] warning ${warning}`);
   }
 
+  await writeSummaryFileIfConfigured(summary);
   console.log(JSON.stringify(summary, null, 2));
 }
 

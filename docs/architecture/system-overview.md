@@ -28,7 +28,7 @@
 12. Manual shelter overrides are stored separately from imported records and applied as effective values on the public shelter detail, municipality, and search read paths when an active override exists.
 13. Imported shelter lifecycle is modeled on `app_v2.shelters` through `import_state`, `last_seen_at`, `last_imported_at`, and canonical official source identity fields.
 14. The first importer skeleton now lives in `lib/importer`, includes both a fixture adapter and a narrow real Datafordeler BBR + DAR adapter, and now targets `app_v2` rather than the legacy `public` schema.
-15. The importer CLI is env-var driven, emits concise operational logs, supports dry-run validation, and is suitable for later non-interactive GitHub Actions execution, but no workflow has been added yet.
+15. The importer CLI is env-var driven, emits concise operational logs, and now runs both locally and in GitHub Actions through the same explicit CLI path with schedule plus `workflow_dispatch`.
 16. The current real-source selection rule is explicit: nationwide BBR `status = 6` records are the primary inclusion path, with municipality and usage-code filters retained only as optional operational narrowing.
 17. The next official-data gatherer iteration is expected to extend that importer skeleton while following the import and field-ownership specs in `docs/data/import-model.md`, `docs/data/field-ownership.md`, and `docs/data/import-contract.md`.
 18. Public runtime reads are now hardened for sparse `app_v2` content: blank imported summaries and blank source summaries are converted into explicit fallback copy instead of rendering empty sections.
@@ -42,7 +42,7 @@
 - No advanced geocoding or ranking logic yet.
 - No public auth UI beyond the internal admin login flow.
 - No background job runner yet beyond documented import flow assumptions.
-- No workflow scheduler or background job runner yet for the official importer.
+- No background job runner beyond the GitHub Actions workflow for the official importer.
 - Legacy `public` remains read-only for v2 migration work.
 - Supabase still needs `app_v2` added to exposed API schemas before all browser/server PostgREST reads will succeed in production.
 - Manual runtime validation still depends on importing at least a small `app_v2` dataset first; the app now handles zero-row and low-data states cleanly, but it cannot validate rich flows without imported shelters.
