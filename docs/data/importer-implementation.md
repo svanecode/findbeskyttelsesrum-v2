@@ -216,10 +216,13 @@ Checkpoint behavior:
   - periodic processed-record progress
   - missing-record handling
   - final import-run completion
+- importer output now also logs coarse phase timings for fetch, preload, apply, missing handling, and total run duration
 - checkpoint writes now use a narrow retry loop for transient Supabase/PostgREST failures
 - checkpoint failures now include the operation type, schema/table, status, payload-key summary, and safe error details in the importer output
 - `SIGINT` and `SIGTERM` now mark the active run as `failed` with the current progress snapshot instead of leaving it stuck in `running`
 - `--max-pages` can be used on a real validation run to verify checkpoint writes without attempting a full nationwide import
+- `shelter_sources` now preload existing lineage rows by stored `source_name`, batch ordinary upserts in chunks, and reserve one-off row updates for references that need to move between shelter ids
+- unchanged shelters now update only lifecycle timestamps and import state instead of rewriting the full baseline payload every run
 
 Expected behavior:
 - `baseline`
@@ -241,7 +244,9 @@ Expected behavior:
 - The real adapter is now scheduled and manually runnable through one explicit GitHub Actions workflow that calls the same importer CLI used locally.
 - The earlier long-run checkpoint failure was not a schema mismatch in `app_v2.import_runs`; the write path itself was valid, but one opaque checkpoint-write failure could abort the whole run without exposing the real PostgREST error.
 - The later apply-phase stall symptom was primarily caused by apply-phase query amplification: municipality convergence and canonical shelter lookup were still running per shelter row. The importer now preloads existing shelters once per run and caches municipality convergence by code.
+- GitHub-hosted slowdown is still mainly an apply-phase problem, not a source-fetch problem. The largest safe wins so far are shelter preloading, source-lineage batching, reduced progress-write frequency, and smaller unchanged-shelter updates.
 - The `app_v2.shelter_sources` path now resolves existing lineage rows by `source_name` + `source_reference` before writing, retries transient failures, and emits table/status/error diagnostics if the write still fails.
+- Shelter update failures now include `app_v2.shelters` table/status/error diagnostics plus shelter id, slug, and canonical source identity context instead of stopping at `Could not update shelter "<slug>"`.
 - Before GitHub Actions scheduling is safe, one full real run should complete with a final `succeeded` or `failed` status, checkpoint/resume should be verified at least once, municipality rows should converge to canonical code-backed rows, and the missing-transition guard should behave as expected on real `app_v2` counts.
 
 ## Next Extension Path

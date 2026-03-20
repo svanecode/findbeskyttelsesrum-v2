@@ -16,6 +16,25 @@ type MunicipalityRow = {
   region_name: string | null;
 };
 
+type ShelterSourceRow = {
+  id: string;
+  shelter_id: string;
+  source_name: string;
+  source_reference: string | null;
+};
+
+type ShelterSourceWritePayload = {
+  shelter_id: string;
+  import_run_id: string;
+  source_name: string;
+  source_type: string;
+  source_url: string | null;
+  source_reference: string;
+  last_verified_at: string | null;
+  imported_at: string;
+  notes: string | null;
+};
+
 type ShelterRow = {
   id: string;
   slug: string;
@@ -68,11 +87,13 @@ const missingTransitionCoverageThreshold = 0.8;
 const missingTransitionMinimumSeenFloor = 25;
 const importRunWriteRetryAttempts = 4;
 const importRunWriteRetryBaseDelayMs = 500;
-const importRunProgressFlushInterval = 250;
+const importRunProgressFlushInterval = 1000;
 const shelterPreloadBatchSize = 1000;
+const shelterSourcePreloadBatchSize = 1000;
+const shelterSourceWriteBatchSize = 250;
 
 type ImportRunWriteOperation = "insert" | "update" | "checkpoint" | "progress";
-type TableWriteOperation = "upsert";
+type TableWriteOperation = "insert" | "update" | "upsert";
 
 type ImportRunWriteErrorInput = {
   operation: ImportRunWriteOperation;
@@ -87,6 +108,7 @@ type TableWriteErrorInput = {
   tableName: string;
   operation: TableWriteOperation;
   payload: Record<string, unknown>;
+  context?: Record<string, unknown>;
   error: unknown;
   status?: number;
   statusText?: string;
@@ -268,6 +290,7 @@ function formatTableWriteFailure(input: TableWriteErrorInput) {
     input.status ? `status=${input.status}` : null,
     input.statusText ? `statusText=${input.statusText}` : null,
     `payload=${summarizeImportRunPayload(input.payload)}`,
+    input.context ? `context=${summarizeImportRunPayload(input.context)}` : null,
     `error=${JSON.stringify(details)}`,
   ]
     .filter(Boolean)
@@ -721,13 +744,47 @@ async function loadExistingSheltersByCanonicalSource(canonicalSourceName: string
   return byReference;
 }
 
-async function upsertShelterSource(input: {
+async function loadExistingShelterSourcesByName(sourceName: string) {
+  const supabase = createAppV2AdminClient();
+  const byReference = new Map<string, ShelterSourceRow>();
+  let from = 0;
+
+  while (true) {
+    const to = from + shelterSourcePreloadBatchSize - 1;
+    const response = await supabase
+      .from("shelter_sources")
+      .select("id, shelter_id, source_name, source_reference")
+      .eq("source_name", sourceName)
+      .range(from, to);
+
+    if (response.error) {
+      throw new Error(`Could not preload existing shelter sources for source "${sourceName}".`);
+    }
+
+    const rows = (response.data ?? []) as ShelterSourceRow[];
+
+    for (const row of rows) {
+      if (row.source_reference) {
+        byReference.set(row.source_reference, row);
+      }
+    }
+
+    if (rows.length < shelterSourcePreloadBatchSize) {
+      break;
+    }
+
+    from += shelterSourcePreloadBatchSize;
+  }
+
+  return byReference;
+}
+
+function buildShelterSourcePayload(input: {
   shelterId: string;
   importRunId: string;
   record: ImportedShelterRecord;
-}) {
-  const supabase = createAppV2AdminClient();
-  const payload = {
+}): ShelterSourceWritePayload {
+  return {
     shelter_id: input.shelterId,
     import_run_id: input.importRunId,
     source_name: input.record.source.sourceName,
@@ -738,86 +795,135 @@ async function upsertShelterSource(input: {
     imported_at: new Date().toISOString(),
     notes: input.record.source.notes,
   };
+}
 
-  const existingSourceResponse = await retryTableWrite(
+async function flushShelterSourceBatch(input: {
+  payloads: ShelterSourceWritePayload[];
+  existingSourcesByReference: Map<string, ShelterSourceRow>;
+}) {
+  if (input.payloads.length === 0) {
+    return;
+  }
+
+  const supabase = createAppV2AdminClient();
+  const batchPayload = {
+    batch_size: input.payloads.length,
+    source_name: input.payloads[0]?.source_name ?? "unknown",
+    first_source_reference: input.payloads[0]?.source_reference ?? "unknown",
+    last_source_reference: input.payloads.at(-1)?.source_reference ?? "unknown",
+  };
+
+  const result = await retryTableWrite(
     "upsert",
     () =>
       supabase
         .from("shelter_sources")
-        .select("id, shelter_id")
-        .eq("source_name", input.record.source.sourceName)
-        .eq("source_reference", input.record.source.sourceReference)
-        .limit(1)
-        .maybeSingle(),
-    (response) => Boolean(response.error),
+        .upsert(input.payloads, {
+          onConflict: "shelter_id,source_name,source_reference",
+        })
+        .select("id, shelter_id, source_name, source_reference"),
+    (response) => Boolean(response.error || !response.data),
     (response) => ({
-      error: response.error ?? new Error("Shelter source lookup returned an unexpected failure."),
+      error: response.error ?? new Error("Shelter source batch upsert returned no rows."),
       status: response.status,
       statusText: response.statusText,
     }),
   );
 
-  if (existingSourceResponse.error) {
+  if (result.error || !result.data) {
     throw new Error(
       formatTableWriteFailure({
         tableName: "app_v2.shelter_sources",
         operation: "upsert",
-        payload,
-        error: existingSourceResponse.error,
-        status: existingSourceResponse.status,
-        statusText: existingSourceResponse.statusText,
+        payload: batchPayload,
+        error: result.error ?? new Error("Shelter source batch upsert returned no rows."),
+        status: result.status,
+        statusText: result.statusText,
       }),
     );
   }
 
-  const existingSource = existingSourceResponse.data as { id: string; shelter_id: string } | null;
+  const rows = result.data as ShelterSourceRow[];
 
-  const writeResult = existingSource
-    ? await retryTableWrite(
-        "upsert",
-        () =>
-          supabase
-            .from("shelter_sources")
-            .update(payload)
-            .eq("id", existingSource.id)
-            .select("id")
-            .single(),
-        (response) => Boolean(response.error || !response.data),
-        (response) => ({
-          error: response.error ?? new Error("Shelter source update matched no row."),
-          status: response.status,
-          statusText: response.statusText,
-        }),
-      )
-    : await retryTableWrite(
-        "upsert",
-        () =>
-          supabase
-            .from("shelter_sources")
-            .upsert(payload, {
-              onConflict: "shelter_id,source_name,source_reference",
-            })
-            .select("id")
-            .single(),
-        (response) => Boolean(response.error || !response.data),
-        (response) => ({
-          error: response.error ?? new Error("Shelter source upsert returned no row."),
-          status: response.status,
-          statusText: response.statusText,
-        }),
-      );
+  for (const row of rows) {
+    if (row.source_reference) {
+      input.existingSourcesByReference.set(row.source_reference, row);
+    }
+  }
+}
 
-  if (writeResult.error || !writeResult.data) {
-    throw new Error(
-      formatTableWriteFailure({
-        tableName: "app_v2.shelter_sources",
-        operation: "upsert",
-        payload,
-        error: writeResult.error ?? new Error("Shelter source write returned no row."),
-        status: writeResult.status,
-        statusText: writeResult.statusText,
+async function upsertShelterSource(input: {
+  shelterId: string;
+  importRunId: string;
+  record: ImportedShelterRecord;
+  existingSourcesByReference: Map<string, ShelterSourceRow>;
+  pendingBatch: ShelterSourceWritePayload[];
+}) {
+  const supabase = createAppV2AdminClient();
+  const payload = buildShelterSourcePayload(input);
+  const existingSource = input.existingSourcesByReference.get(input.record.source.sourceReference) ?? null;
+
+  if (existingSource && existingSource.shelter_id !== input.shelterId) {
+    await flushShelterSourceBatch({
+      payloads: input.pendingBatch,
+      existingSourcesByReference: input.existingSourcesByReference,
+    });
+    input.pendingBatch.length = 0;
+
+    const writeResult = await retryTableWrite(
+      "update",
+      () =>
+        supabase
+          .from("shelter_sources")
+          .update(payload)
+          .eq("id", existingSource.id)
+          .select("id, shelter_id, source_name, source_reference")
+          .single(),
+      (response) => Boolean(response.error || !response.data),
+      (response) => ({
+        error: response.error ?? new Error("Shelter source update matched no row."),
+        status: response.status,
+        statusText: response.statusText,
       }),
     );
+
+    if (writeResult.error || !writeResult.data) {
+      throw new Error(
+        formatTableWriteFailure({
+          tableName: "app_v2.shelter_sources",
+          operation: "update",
+          payload,
+          context: {
+            shelter_id: input.shelterId,
+            source_name: input.record.source.sourceName,
+            source_reference: input.record.source.sourceReference,
+            existing_source_id: existingSource.id,
+            existing_shelter_id: existingSource.shelter_id,
+          },
+          error: writeResult.error ?? new Error("Shelter source update returned no row."),
+          status: writeResult.status,
+          statusText: writeResult.statusText,
+        }),
+      );
+    }
+
+    const updated = writeResult.data as ShelterSourceRow;
+
+    if (updated.source_reference) {
+      input.existingSourcesByReference.set(updated.source_reference, updated);
+    }
+
+    return;
+  }
+
+  input.pendingBatch.push(payload);
+
+  if (input.pendingBatch.length >= shelterSourceWriteBatchSize) {
+    await flushShelterSourceBatch({
+      payloads: input.pendingBatch,
+      existingSourcesByReference: input.existingSourcesByReference,
+    });
+    input.pendingBatch.length = 0;
   }
 }
 
@@ -854,19 +960,44 @@ async function upsertShelterBaseline(input: {
   };
 
   if (!existing) {
-    const insertResponse = await supabase
-      .from("shelters")
-      .insert({
-        ...desiredBaseline,
-        source_summary: buildCompatibilitySourceSummary(input.record),
-      })
-      .select(
-        "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
-      )
-      .single();
+    const insertPayload = {
+      ...desiredBaseline,
+      source_summary: buildCompatibilitySourceSummary(input.record),
+    };
+    const insertResponse = await retryTableWrite(
+      "insert",
+      () =>
+        supabase
+          .from("shelters")
+          .insert(insertPayload)
+          .select(
+            "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
+          )
+          .single(),
+      (response) => Boolean(response.error || !response.data),
+      (response) => ({
+        error: response.error ?? new Error("Shelter insert returned no row."),
+        status: response.status,
+        statusText: response.statusText,
+      }),
+    );
 
     if (insertResponse.error || !insertResponse.data) {
-      throw new Error(`Could not insert shelter "${input.record.source.canonicalSourceReference}".`);
+      throw new Error(
+        formatTableWriteFailure({
+          tableName: "app_v2.shelters",
+          operation: "insert",
+          payload: insertPayload,
+          context: {
+            slug: input.record.shelter.slug,
+            canonical_source_name: input.record.source.canonicalSourceName,
+            canonical_source_reference: input.record.source.canonicalSourceReference,
+          },
+          error: insertResponse.error ?? new Error("Shelter insert returned no row."),
+          status: insertResponse.status,
+          statusText: insertResponse.statusText,
+        }),
+      );
     }
 
     input.counters.inserted += 1;
@@ -878,18 +1009,51 @@ async function upsertShelterBaseline(input: {
 
   const hasBaselineChange = hasShelterBaselineChange(existing, desiredBaseline);
   const wasMissing = existing.import_state === "missing_from_source";
+  const shelterUpdatePayload =
+    hasBaselineChange || wasMissing
+      ? desiredBaseline
+      : {
+          last_seen_at: input.importTimestamp,
+          last_imported_at: input.importTimestamp,
+          import_state: input.record.lifecycle.importState,
+        };
 
-  const updateResponse = await supabase
-    .from("shelters")
-    .update(desiredBaseline)
-    .eq("id", existing.id)
-    .select(
-      "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
-    )
-    .single();
+  const updateResponse = await retryTableWrite(
+    "update",
+    () =>
+      supabase
+        .from("shelters")
+        .update(shelterUpdatePayload)
+        .eq("id", existing.id)
+        .select(
+          "id, slug, municipality_id, name, address_line1, postal_code, city, latitude, longitude, capacity, status, accessibility_notes, summary, source_summary, import_state, canonical_source_name, canonical_source_reference",
+        )
+        .single(),
+    (response) => Boolean(response.error || !response.data),
+    (response) => ({
+      error: response.error ?? new Error("Shelter update matched no row."),
+      status: response.status,
+      statusText: response.statusText,
+    }),
+  );
 
   if (updateResponse.error || !updateResponse.data) {
-    throw new Error(`Could not update shelter "${existing.slug}".`);
+    throw new Error(
+      formatTableWriteFailure({
+        tableName: "app_v2.shelters",
+        operation: "update",
+        payload: shelterUpdatePayload,
+        context: {
+          shelter_id: existing.id,
+          slug: existing.slug,
+          canonical_source_name: input.record.source.canonicalSourceName,
+          canonical_source_reference: input.record.source.canonicalSourceReference,
+        },
+        error: updateResponse.error ?? new Error("Shelter update matched no row."),
+        status: updateResponse.status,
+        statusText: updateResponse.statusText,
+      }),
+    );
   }
 
   if (wasMissing) {
@@ -1120,6 +1284,7 @@ export async function runOfficialImporter(input: {
   let processedRecords = 0;
   let recordsSeen = 0;
   let isSettled = false;
+  const runStartedAt = Date.now();
 
   const progressState = (): ImportRunProgressState => ({
     recordsSeen,
@@ -1170,6 +1335,7 @@ export async function runOfficialImporter(input: {
   process.once("SIGTERM", handleSigterm);
 
   try {
+    const fetchStartedAt = Date.now();
     const fetchResult = await input.adapter.fetchRecords({
       ...effectiveSnapshot,
       onPageFetched: async (progress) => {
@@ -1186,12 +1352,13 @@ export async function runOfficialImporter(input: {
     });
     const records = fetchResult.records;
     recordsSeen = records.length;
+    const fetchDurationMs = Date.now() - fetchStartedAt;
 
     assertUniqueCanonicalRecords(records);
     assertAdapterSourceConsistency(records, input.adapter);
 
     console.info(
-      `[importer] apply: fetch complete importRunId=${importRun.id} recordsSeen=${recordsSeen} pagesFetched=${pagesFetched}`,
+      `[importer] apply: fetch complete importRunId=${importRun.id} recordsSeen=${recordsSeen} pagesFetched=${pagesFetched} fetchDurationMs=${fetchDurationMs}`,
     );
 
     await updateImportRunProgress(importRun.id, progressState());
@@ -1205,10 +1372,17 @@ export async function runOfficialImporter(input: {
     };
     const seenReferences = new Set<string>();
     const municipalityCache = new Map<string, MunicipalityUpsertResult>();
-    const existingSheltersByReference = await loadExistingSheltersByCanonicalSource(input.adapter.sourceName);
+    const applyPreloadStartedAt = Date.now();
+    const sourceLineageName = records[0]?.source.sourceName ?? input.adapter.sourceName;
+    const [existingSheltersByReference, existingSourcesByReference] = await Promise.all([
+      loadExistingSheltersByCanonicalSource(input.adapter.sourceName),
+      loadExistingShelterSourcesByName(sourceLineageName),
+    ]);
+    const sourceBatchPayloads: ShelterSourceWritePayload[] = [];
+    const applyStartedAt = Date.now();
 
     console.info(
-      `[importer] apply: starting baseline upserts importRunId=${importRun.id} records=${records.length} preloadedExistingShelters=${existingSheltersByReference.size}`,
+      `[importer] apply: starting baseline upserts importRunId=${importRun.id} records=${records.length} preloadedExistingShelters=${existingSheltersByReference.size} preloadedExistingSources=${existingSourcesByReference.size} preloadDurationMs=${Date.now() - applyPreloadStartedAt}`,
     );
 
     for (const record of records) {
@@ -1228,6 +1402,8 @@ export async function runOfficialImporter(input: {
         shelterId: shelter.id,
         importRunId: importRun.id,
         record,
+        existingSourcesByReference,
+        pendingBatch: sourceBatchPayloads,
       });
 
       processedRecords += 1;
@@ -1240,8 +1416,13 @@ export async function runOfficialImporter(input: {
       }
     }
 
+    await flushShelterSourceBatch({
+      payloads: sourceBatchPayloads,
+      existingSourcesByReference,
+    });
+
     console.info(
-      `[importer] apply: baseline upserts complete importRunId=${importRun.id} processed=${processedRecords} inserted=${counters.inserted} updated=${counters.updated} unchanged=${counters.unchanged} restored=${counters.restored}`,
+      `[importer] apply: baseline upserts complete importRunId=${importRun.id} processed=${processedRecords} inserted=${counters.inserted} updated=${counters.updated} unchanged=${counters.unchanged} restored=${counters.restored} applyDurationMs=${Date.now() - applyStartedAt}`,
     );
 
     const missingTransitionDecision = decideMissingTransitions({
@@ -1251,6 +1432,7 @@ export async function runOfficialImporter(input: {
     });
 
     if (missingTransitionDecision.shouldApply) {
+      const missingStartedAt = Date.now();
       console.info(`[importer] apply: marking missing shelters importRunId=${importRun.id}`);
       counters.missing = await markMissingShelters({
         canonicalSourceName: input.adapter.sourceName,
@@ -1258,13 +1440,16 @@ export async function runOfficialImporter(input: {
         importTimestamp,
         actorIdentifier,
       });
+      console.info(
+        `[importer] apply: missing shelters complete importRunId=${importRun.id} missing=${counters.missing} missingDurationMs=${Date.now() - missingStartedAt}`,
+      );
     }
 
     const recordsUpserted = counters.inserted + counters.updated + counters.restored;
     processedRecords = recordsUpserted;
 
     console.info(
-      `[importer] apply: finalizing import run importRunId=${importRun.id} recordsUpserted=${recordsUpserted} missing=${counters.missing} missingTransitionsApplied=${missingTransitionDecision.shouldApply}`,
+      `[importer] apply: finalizing import run importRunId=${importRun.id} recordsUpserted=${recordsUpserted} missing=${counters.missing} missingTransitionsApplied=${missingTransitionDecision.shouldApply} totalDurationMs=${Date.now() - runStartedAt}`,
     );
 
     await updateImportRun(importRun.id, {
