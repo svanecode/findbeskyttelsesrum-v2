@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
 
-import { PageShell } from "@/components/shared/page-shell";
-import { SectionHeading } from "@/components/shared/section-heading";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { geocodeAddressQuery, type GeocodeResult } from "@/lib/geocoding/dawa";
 import {
-  searchShelters,
-  type SearchShelterResultSet,
-} from "@/lib/supabase/queries";
+  DataStrip,
+  PublicPageIntro,
+  PublicSurface,
+} from "@/components/shared/public-primitives";
+import { PageShell } from "@/components/shared/page-shell";
+import { Badge } from "@/components/ui/badge";
+import { geocodeAddressQuery, type GeocodeResult } from "@/lib/geocoding/dawa";
+import { searchShelters, type SearchShelterResultSet } from "@/lib/supabase/queries";
 
 import { SearchEmptyState } from "./components/search-empty-state";
 import { SearchForm } from "./components/search-form";
@@ -35,67 +35,63 @@ function getSearchSummary(
   const parts = [];
 
   if (options.displayQuery) {
-    parts.push(`Query: "${options.displayQuery}"`);
-  }
-
-  if (resultSet.municipalityName) {
-    parts.push(`Municipality: ${resultSet.municipalityName}`);
+    parts.push(`“${options.displayQuery}”`);
   }
 
   if (options.resolvedAddressLabel) {
-    parts.push(`Resolved to: ${options.resolvedAddressLabel}`);
+    parts.push(options.resolvedAddressLabel);
+  }
+
+  if (resultSet.municipalityName) {
+    parts.push(resultSet.municipalityName);
   }
 
   if (resultSet.coordinates) {
     parts.push(
-      `Location: ${formatCoordinateLabel(resultSet.coordinates.latitude)}, ${formatCoordinateLabel(resultSet.coordinates.longitude)}`,
+      `${formatCoordinateLabel(resultSet.coordinates.latitude)}, ${formatCoordinateLabel(resultSet.coordinates.longitude)}`,
     );
   }
 
-  if (parts.length === 0) {
-    return "Search by address, area, postcode, municipality, or current location.";
-  }
-
-  return parts.join(" • ");
+  return parts.join(" · ");
 }
 
-function getSearchDescription(
+function getSearchModeLabel(
   resultSet: SearchShelterResultSet,
   options: {
+    resolvedAddressLabel: string | null;
     hasInvalidCoordinates: boolean;
     geocodingResult: GeocodeResult | null;
-    resolvedAddressLabel: string | null;
   },
 ) {
   if (options.resolvedAddressLabel) {
-    return `The query resolved to ${options.resolvedAddressLabel}, so the results use nearby distance ordering as the primary search behavior.`;
+    return "Address resolved";
   }
 
   if (resultSet.searchMode === "combined") {
-    return "Text matches are narrowed first and then ordered by distance from the shared coordinates.";
+    return "Text + distance";
   }
 
   if (resultSet.searchMode === "location") {
-    return "Results are ordered by distance from the shared coordinates using the public shelter records with known latitude and longitude.";
+    return "Distance";
   }
 
   if (options.geocodingResult?.status === "ambiguous") {
-    return "This query matched multiple possible addresses, so the page fell back to the standard text search path.";
+    return "Text fallback";
   }
 
   if (options.geocodingResult?.status === "no_match") {
-    return "No address match was found for this query, so the page fell back to the standard text search path.";
+    return "Text fallback";
   }
 
   if (options.geocodingResult?.status === "provider_error") {
-    return "Address lookup is temporarily unavailable, so the page fell back to the standard text search path.";
+    return "Text fallback";
   }
 
   if (options.hasInvalidCoordinates) {
-    return "The location parameters in the URL could not be used, so the search fell back to the standard text search path.";
+    return "Text fallback";
   }
 
-  return "Search matches currently use a simple server-side text strategy across shelter name, address, city, postcode, and municipality, with optional municipality narrowing.";
+  return "Text";
 }
 
 export async function SearchPage({ searchParams }: SearchPageProps) {
@@ -106,14 +102,15 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
 
   if (!normalized.hasSearchIntent) {
     return (
-      <PageShell className="py-12 sm:py-16">
-        <div className="space-y-8">
-          <SectionHeading
-            eyebrow="Find"
-            title="Find shelters by address or municipality."
-            description="Search results are rendered on the server using the public shelter records in Supabase. This first version is intentionally simple, direct, and easy to trust."
+      <PageShell className="space-y-10 py-10 sm:space-y-12 sm:py-14">
+        <div className="mx-auto max-w-4xl space-y-8">
+          <PublicPageIntro
+            title="Search shelters."
+            description="By address, area, postcode, or current location."
           />
-          <SearchForm defaultQuery={normalized.query} municipalitySlug={normalized.municipalitySlug} />
+          <PublicSurface className="p-5 sm:p-7">
+            <SearchForm defaultQuery={normalized.query} municipalitySlug={normalized.municipalitySlug} />
+          </PublicSurface>
           <SearchEmptyState />
         </div>
       </PageShell>
@@ -122,14 +119,15 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
 
   if (normalized.hasInvalidCoordinates && !hasFallbackSearch) {
     return (
-      <PageShell className="py-12 sm:py-16">
-        <div className="space-y-8">
-          <SectionHeading
-            eyebrow="Find"
-            title="Location search could not be started"
-            description="The location parameters in the URL are incomplete or invalid. Start a new search or share your location again from the homepage."
+      <PageShell className="space-y-10 py-10 sm:space-y-12 sm:py-14">
+        <div className="mx-auto max-w-4xl space-y-8">
+          <PublicPageIntro
+            title="Location search could not be started."
+            description="Start a new search."
           />
-          <SearchForm defaultQuery={normalized.query} municipalitySlug={normalized.municipalitySlug} />
+          <PublicSurface className="p-5 sm:p-7">
+            <SearchForm defaultQuery={normalized.query} municipalitySlug={normalized.municipalitySlug} />
+          </PublicSurface>
           <SearchNoResults
             isMunicipalityFilterInvalid={false}
             municipalityName={null}
@@ -168,81 +166,78 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
     longitude: normalized.coordinates?.longitude ?? null,
   });
 
-  return (
-    <PageShell className="py-12 sm:py-16">
-      <div className="space-y-8">
-        <SectionHeading
-          eyebrow="Find"
-          title="Shelter search results"
-          description="This result view keeps the hierarchy simple: search summary first, public shelter records second, and source clarity visible on every card."
-        />
+  const summary = getSearchSummary(resultSet, {
+    displayQuery: normalized.query,
+    resolvedAddressLabel,
+  });
 
-        <div className="space-y-4">
-          <SearchForm
-            defaultQuery={normalized.query}
-            municipalitySlug={resultSet.municipalitySlug}
-            latitude={resolvedAddressLabel ? null : resultSet.coordinates?.latitude ?? null}
-            longitude={resolvedAddressLabel ? null : resultSet.coordinates?.longitude ?? null}
-          />
-          <Card className="border border-border/70 bg-card/90">
-            <CardHeader className="gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{resultSet.results.length} results</Badge>
-                {resolvedAddressLabel ? (
-                  <Badge variant="outline">Address resolved</Badge>
-                ) : null}
-                {resultSet.searchMode === "location" ? (
-                  <Badge variant="outline">Distance sorted</Badge>
-                ) : null}
-                {resultSet.searchMode === "combined" ? (
-                  <Badge variant="outline">Text + distance</Badge>
-                ) : null}
-                {resultSet.isMunicipalityFilterInvalid ? (
-                  <Badge variant="outline">Unknown municipality filter</Badge>
-                ) : null}
-                {normalized.hasInvalidCoordinates ? (
-                  <Badge variant="outline">Ignored invalid location params</Badge>
-                ) : null}
-                {resultSet.searchMode !== "text" && !resultSet.hasNearbyResults ? (
-                  <Badge variant="outline">
-                    No shelters within {resultSet.nearbyRadiusKm} km
-                  </Badge>
-                ) : null}
-              </div>
-              <CardTitle>Search summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm leading-6 text-muted-foreground">
-              <p>
-                {getSearchSummary(resultSet, {
-                  displayQuery: normalized.query,
+  return (
+    <PageShell className="space-y-8 py-10 sm:space-y-10 sm:py-14">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-end">
+        <div className="space-y-6">
+          <PublicPageIntro
+            title={`${resultSet.results.length} shelter${resultSet.results.length === 1 ? "" : "s"}`}
+            description={summary || "Search by address, area, postcode, municipality, or current location."}
+            meta={
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <Badge variant="secondary">{getSearchModeLabel(resultSet, {
                   resolvedAddressLabel,
-                })}
-              </p>
-              <p>
-                {getSearchDescription(resultSet, {
                   hasInvalidCoordinates: normalized.hasInvalidCoordinates,
                   geocodingResult,
-                  resolvedAddressLabel,
-                })}
-              </p>
-            </CardContent>
-          </Card>
+                })}</Badge>
+                {resultSet.isMunicipalityFilterInvalid ? <span>Unknown municipality filter</span> : null}
+                {resultSet.searchMode !== "text" && !resultSet.hasNearbyResults ? (
+                  <span>No shelters within {resultSet.nearbyRadiusKm} km</span>
+                ) : null}
+              </div>
+            }
+          />
+          <PublicSurface className="p-4 sm:p-5">
+            <SearchForm
+              defaultQuery={normalized.query}
+              municipalitySlug={resultSet.municipalitySlug}
+              latitude={resolvedAddressLabel ? null : resultSet.coordinates?.latitude ?? null}
+              longitude={resolvedAddressLabel ? null : resultSet.coordinates?.longitude ?? null}
+            />
+          </PublicSurface>
         </div>
 
-        {resultSet.results.length > 0 ? (
-          <SearchResultsExperience resultSet={resultSet} />
-        ) : (
-          <SearchNoResults
-            isMunicipalityFilterInvalid={resultSet.isMunicipalityFilterInvalid}
-            municipalityName={resultSet.municipalityName}
-            query={normalized.query}
-            hasInvalidCoordinates={normalized.hasInvalidCoordinates}
-            hasLocationSearch={resultSet.searchMode !== "text"}
-            nearbyRadiusKm={resultSet.nearbyRadiusKm}
-            geocodingStatus={geocodingResult?.status ?? null}
-          />
-        )}
+        <DataStrip
+          className="h-fit"
+          items={[
+            {
+              label: "Mode",
+              value: getSearchModeLabel(resultSet, {
+                resolvedAddressLabel,
+                hasInvalidCoordinates: normalized.hasInvalidCoordinates,
+                geocodingResult,
+              }),
+            },
+            {
+              label: "Mapped",
+              value: `${resultSet.results.filter((result) => result.latitude !== null && result.longitude !== null).length} with coordinates`,
+            },
+            {
+              label: "Municipality",
+              value: resultSet.municipalityName ?? "All",
+            },
+          ]}
+        />
       </div>
+
+      {resultSet.results.length > 0 ? (
+        <SearchResultsExperience resultSet={resultSet} />
+      ) : (
+        <SearchNoResults
+          isMunicipalityFilterInvalid={resultSet.isMunicipalityFilterInvalid}
+          municipalityName={resultSet.municipalityName}
+          query={normalized.query}
+          hasInvalidCoordinates={normalized.hasInvalidCoordinates}
+          hasLocationSearch={resultSet.searchMode !== "text"}
+          nearbyRadiusKm={resultSet.nearbyRadiusKm}
+          geocodingStatus={geocodingResult?.status ?? null}
+        />
+      )}
     </PageShell>
   );
 }

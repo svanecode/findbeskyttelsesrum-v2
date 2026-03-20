@@ -9,7 +9,7 @@ const SearchResultsMapLeaflet = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="rounded-3xl border border-border/70 bg-card/95 p-6 text-sm leading-6 text-muted-foreground">
+      <div className="rounded-2xl border border-border/80 bg-card p-6 text-sm leading-6 text-muted-foreground">
         Loading map...
       </div>
     ),

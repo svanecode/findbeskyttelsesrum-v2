@@ -23,7 +23,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="w-full sm:w-auto" disabled={pending} type="submit">
+    <Button className="w-full rounded-2xl sm:w-auto" disabled={pending} type="submit">
       {pending ? "Submitting report..." : "Submit report"}
     </Button>
   );
@@ -57,7 +57,7 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
       </div>
 
       {!showForm ? (
-        <Button onClick={() => setIsOpen(true)} type="button" variant="outline">
+        <Button className="rounded-2xl" onClick={() => setIsOpen(true)} type="button" variant="outline">
           Report an issue
         </Button>
       ) : null}
@@ -67,7 +67,7 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
           <input name="shelterId" type="hidden" value={shelterId} />
 
           {state.status === "success" ? (
-            <div className="rounded-2xl border border-border/70 bg-background/80 p-4 text-sm leading-6 text-muted-foreground">
+            <div className="rounded-2xl border border-border/80 bg-background p-4 text-sm leading-6 text-muted-foreground">
               <p className="font-medium text-foreground">Report received</p>
               <p className="mt-1">{state.message}</p>
             </div>
@@ -78,7 +78,7 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
                   Issue type
                 </label>
                 <select
-                  className="flex h-11 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                  className="flex h-11 w-full rounded-2xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
                   defaultValue=""
                   id="reportType"
                   name="reportType"
@@ -129,7 +129,7 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
 
               <div className="flex flex-wrap gap-3">
                 <SubmitButton />
-                <Button onClick={() => setIsOpen(false)} type="button" variant="ghost">
+                <Button className="rounded-2xl" onClick={() => setIsOpen(false)} type="button" variant="ghost">
                   Cancel
                 </Button>
               </div>

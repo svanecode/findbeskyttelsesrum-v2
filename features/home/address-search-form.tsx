@@ -58,19 +58,19 @@ export function AddressSearchForm() {
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-12 rounded-full border-border/80 bg-background pl-10 text-base"
+            className="h-14 rounded-2xl border-border bg-background pl-10 text-base shadow-none"
             name="q"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Enter an address or area"
+            placeholder="Enter an address, area, or postcode"
             value={query}
           />
         </div>
-        <Button className="h-12 w-full rounded-full px-5 sm:w-auto" size="lg" type="submit">
+        <Button className="h-14 w-full rounded-2xl px-6 sm:w-auto" size="lg" type="submit">
           Search
         </Button>
       </form>
       <Button
-        className="h-11 rounded-full px-5"
+        className="h-11 rounded-2xl px-5"
         disabled={isLocating}
         onClick={handleUseLocation}
         type="button"

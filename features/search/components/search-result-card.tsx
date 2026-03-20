@@ -1,20 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MapPinned } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceLabel } from "@/lib/location/distance";
+import { cn } from "@/lib/utils";
 import type { SearchShelterResult } from "@/lib/supabase/queries";
 
 type SearchResultCardProps = {
@@ -29,60 +23,57 @@ export function SearchResultCard({
   onSelect,
 }: SearchResultCardProps) {
   const distanceLabel = formatDistanceLabel(result.distanceKm);
+  const sourceLine = [
+    result.primarySourceName,
+    result.dataQualityScore !== null ? `Quality ${result.dataQualityScore}/100` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Card
-      className={`border bg-card/95 transition-colors ${isSelected ? "border-primary/60 ring-1 ring-primary/20" : "border-border/70"}`}
+      className={cn(
+        "border border-border/80 bg-card py-0 shadow-none transition-colors",
+        isSelected && "border-primary/50",
+      )}
     >
-      <CardHeader className="gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{result.statusLabel}</Badge>
-          {distanceLabel ? <Badge variant="outline">{distanceLabel}</Badge> : null}
-          {result.dataQualityScore !== null ? (
-            <Badge variant="secondary">Quality {result.dataQualityScore}/100</Badge>
-          ) : (
-            <Badge variant="secondary">Quality pending</Badge>
-          )}
-        </div>
-        <div className="space-y-1">
-          <CardTitle>{result.name || "Unnamed shelter record"}</CardTitle>
-          <CardDescription>
-            {result.addressLine1}, {result.postalCode} {result.city}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm text-muted-foreground">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <p className="font-medium text-foreground">Municipality</p>
-            <p>{result.municipality.name}</p>
+      <CardHeader className="gap-3 px-4 py-4 sm:px-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <CardTitle className="text-[1.02rem] font-semibold tracking-[-0.02em]">
+              {result.addressLine1}
+            </CardTitle>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {result.postalCode} {result.city}
+            </p>
           </div>
-          <div className="space-y-1">
-            <p className="font-medium text-foreground">Primary source</p>
-            <p>{result.primarySourceName ?? "Source still being connected"}</p>
-          </div>
-        </div>
-        <p className="leading-6">{result.summary}</p>
-      </CardContent>
-      <CardFooter className="justify-between gap-3">
-        <button
-          className="text-left text-sm text-muted-foreground"
-          onClick={() => onSelect?.(result.id)}
-          type="button"
-        >
-          {result.capacity} people
-        </button>
-        <div className="flex items-center gap-2">
-          {onSelect ? (
-            <Button onClick={() => onSelect(result.id)} type="button" variant="ghost">
-              Show on map
-            </Button>
+          {distanceLabel ? (
+            <p className="shrink-0 text-sm font-medium text-foreground">{distanceLabel}</p>
           ) : null}
-          <Link className={buttonVariants({ variant: "link" })} href={`/beskyttelsesrum/${result.slug}`}>
-            Open shelter
-            <ArrowRight />
-          </Link>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <Badge variant="secondary">{result.statusLabel}</Badge>
+          <span>{result.municipality.name}</span>
+          {result.capacity > 0 ? <span>{result.capacity} people</span> : null}
+        </div>
+
+        {sourceLine ? <p className="text-sm leading-6 text-muted-foreground">{sourceLine}</p> : null}
+      </CardHeader>
+
+      <CardFooter className="justify-between gap-3 border-t border-border/70 bg-transparent px-4 py-3 sm:px-5">
+        {onSelect ? (
+          <Button className="rounded-xl" onClick={() => onSelect(result.id)} type="button" variant="ghost">
+            <MapPinned />
+            Map
+          </Button>
+        ) : (
+          <span />
+        )}
+        <Link className={buttonVariants({ variant: "link" })} href={`/beskyttelsesrum/${result.slug}`}>
+          Open
+          <ArrowRight />
+        </Link>
       </CardFooter>
     </Card>
   );

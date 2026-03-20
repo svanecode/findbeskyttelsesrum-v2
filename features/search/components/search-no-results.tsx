@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -25,11 +24,8 @@ export function SearchNoResults({
   geocodingStatus = null,
 }: SearchNoResultsProps) {
   return (
-    <Card className="border border-dashed border-border/80 bg-card/90">
+    <Card className="border border-dashed border-border/80 bg-card py-0">
       <CardHeader className="gap-3">
-        <Badge variant="secondary">
-          {hasInvalidCoordinates ? "Invalid location" : "No matches"}
-        </Badge>
         <CardTitle>No shelters matched this search.</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 text-sm leading-6 text-muted-foreground">
@@ -54,11 +50,6 @@ export function SearchNoResults({
           {hasLocationSearch && nearbyRadiusKm
             ? ` No public shelter records matched this location-aware search within the current ${nearbyRadiusKm} km nearby threshold.`
             : null}
-        </p>
-        <p>
-          {hasInvalidCoordinates
-            ? "Check the shared location link or start a new search from the homepage location button."
-            : "Try a shorter address fragment, a postcode, or remove the municipality filter from the URL to broaden the result set."}
         </p>
         <div className="flex flex-wrap gap-3">
           <Link className={buttonVariants({ variant: "outline" })} href="/find?q=2300">

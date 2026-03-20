@@ -16,7 +16,7 @@ export function SearchResultsList({
   onSelectResult,
 }: SearchResultsListProps) {
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-2.5">
       {results.map((result) => (
         <SearchResultCard
           key={result.id}

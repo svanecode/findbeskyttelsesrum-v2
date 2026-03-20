@@ -34,11 +34,11 @@ export function SearchResultsExperience({ resultSet }: SearchResultsExperiencePr
       <div className="flex items-center justify-between gap-3 lg:hidden">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{resultSet.results.length} results</Badge>
-          {mappedCount > 0 ? <Badge variant="outline">{mappedCount} on map</Badge> : null}
+          {mappedCount > 0 ? <Badge variant="outline">{mappedCount} mapped</Badge> : null}
         </div>
-        <div className="inline-flex rounded-full border border-border/70 bg-card p-1">
+        <div className="inline-flex rounded-2xl border border-border/80 bg-card p-1">
           <Button
-            className="rounded-full"
+            className="rounded-xl"
             onClick={() => setViewMode("list")}
             size="sm"
             type="button"
@@ -47,7 +47,7 @@ export function SearchResultsExperience({ resultSet }: SearchResultsExperiencePr
             List
           </Button>
           <Button
-            className="rounded-full"
+            className="rounded-xl"
             onClick={() => setViewMode("map")}
             size="sm"
             type="button"
@@ -58,7 +58,7 @@ export function SearchResultsExperience({ resultSet }: SearchResultsExperiencePr
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.85fr)] lg:items-start">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.74fr)] lg:items-start">
         <div className={viewMode === "map" ? "hidden lg:block" : "block"}>
           <SearchResultsList
             results={resultSet.results}

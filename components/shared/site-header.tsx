@@ -18,12 +18,9 @@ export function SiteHeader() {
             <span className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
               FB
             </span>
-            <div>
-              <p className="text-sm font-semibold tracking-[0.12em] text-muted-foreground uppercase">
-                Findbeskyttelsesrum
-              </p>
-              <p className="text-base font-semibold text-foreground">v2 baseline</p>
-            </div>
+            <p className="text-base font-semibold tracking-[-0.02em] text-foreground">
+              Findbeskyttelsesrum
+            </p>
           </Link>
         </div>
         <nav className="flex flex-wrap items-center justify-end gap-2">
