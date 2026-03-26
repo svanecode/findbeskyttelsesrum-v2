@@ -1,12 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, MapPinned } from "lucide-react";
+import { MapPinned } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceLabel } from "@/lib/location/distance";
 import { cn } from "@/lib/utils";
 import type { SearchShelterResult } from "@/lib/supabase/queries";
@@ -23,68 +19,65 @@ export function SearchResultCard({
   onSelect,
 }: SearchResultCardProps) {
   const distanceLabel = formatDistanceLabel(result.distanceKm);
-  const sourceLine = [
-    result.primarySourceName,
-    result.dataQualityScore !== null ? `Quality ${result.dataQualityScore}/100` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const displayTitle =
+    result.name.startsWith("Shelter at ") || result.name.startsWith("Beskyttelsesrum ved ")
+      ? result.addressLine1
+      : result.name;
 
   return (
-    <Card
+    <div
       className={cn(
-        "border border-white/10 bg-[#12151b] py-0 text-[#f7efe6] shadow-none transition-colors",
-        isSelected && "border-[#ff7a1a]/55 bg-[#151922]",
+        "relative border border-border bg-card text-foreground transition-colors",
+        isSelected && "bg-muted",
       )}
+      style={{ borderLeftColor: "var(--border)", borderLeftWidth: "3px" }}
     >
-      <CardHeader className="gap-3 px-4 py-4 sm:px-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 space-y-1">
-            <CardTitle className="text-[1.02rem] font-semibold tracking-[-0.03em] text-[#fff7ef]">
-              {result.addressLine1}
-            </CardTitle>
-            <p className="text-sm leading-6 text-[#b8a793]">
-              {result.postalCode} {result.city}
-            </p>
-          </div>
-          {distanceLabel ? (
-            <p className="shrink-0 text-sm font-medium text-[#ffad70]">{distanceLabel}</p>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-sm text-[#b8a793]">
-          <Badge className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]" variant="secondary">
-            {result.statusLabel}
-          </Badge>
-          <span>{result.municipality.name}</span>
-          {result.capacity > 0 ? <span>{result.capacity} people</span> : null}
-        </div>
-
-        {sourceLine ? <p className="text-sm leading-6 text-[#988773]">{sourceLine}</p> : null}
-      </CardHeader>
-
-      <CardFooter className="justify-between gap-3 border-t border-white/8 bg-transparent px-4 py-3 sm:px-5">
-        {onSelect ? (
-          <Button
-            className="rounded-xl text-[#d4c2ae] hover:bg-white/6 hover:text-[#fff5eb]"
-            onClick={() => onSelect(result.id)}
-            type="button"
-            variant="ghost"
-          >
-            <MapPinned />
-            Map
-          </Button>
-        ) : (
-          <span />
-        )}
-        <Link
-          className={cn(buttonVariants({ variant: "link" }), "text-[#ff9c52] hover:text-[#ffb06d]")}
-          href={`/beskyttelsesrum/${result.slug}`}
+      {onSelect ? (
+        <button
+          aria-label={`Show ${result.addressLine1} on map`}
+          className="absolute top-3 right-3 z-10 inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => onSelect(result.id)}
+          type="button"
         >
-          Open
-          <ArrowRight />
-        </Link>
-      </CardFooter>
-    </Card>
+          <MapPinned className="size-4" />
+        </button>
+      ) : null}
+      <Link
+        className="block px-4 py-4 pr-12 sm:px-5"
+        href={`/beskyttelsesrum/${result.slug}`}
+        onClick={() => onSelect?.(result.id)}
+      >
+        <div className="space-y-2 sm:space-y-0">
+          <div className="flex items-start justify-between gap-4 sm:hidden">
+            <div className="min-w-0">
+              <p className="truncate text-[1.02rem] font-semibold tracking-[-0.03em] text-foreground">
+                {displayTitle}
+              </p>
+            </div>
+            {distanceLabel ? (
+              <p className="shrink-0 text-sm font-medium text-muted-foreground">{distanceLabel}</p>
+            ) : null}
+          </div>
+
+          <div className="hidden items-center gap-3 sm:flex">
+            <p className="min-w-0 truncate text-[1.02rem] font-semibold tracking-[-0.03em] text-foreground">
+              {displayTitle}
+            </p>
+            <p className="shrink-0 text-sm text-muted-foreground">{result.city}</p>
+            {result.capacity > 0 ? (
+              <p className="shrink-0 text-sm text-muted-foreground">· {result.capacity} people</p>
+            ) : null}
+            {distanceLabel ? (
+              <p className="ml-auto shrink-0 text-sm font-medium text-muted-foreground">{distanceLabel}</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground sm:hidden">
+            <span>{result.city}</span>
+            {result.capacity > 0 ? <span>· {result.capacity} people</span> : null}
+          </div>
+        </div>
+      </Link>
+    </div>
   );
 }

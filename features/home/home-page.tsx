@@ -1,16 +1,8 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 
-import {
-  PublicPageIntro,
-  PublicPanel,
-  PublicSurface,
-} from "@/components/shared/public-primitives";
 import { PageShell } from "@/components/shared/page-shell";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button-variants";
 import type { FeaturedShelter } from "@/lib/supabase/queries";
-import { cn } from "@/lib/utils";
 
 import { AddressSearchForm } from "./address-search-form";
 
@@ -22,114 +14,102 @@ export function HomePage({ featuredShelters }: HomePageProps) {
   const primaryShelter = featuredShelters[0] ?? null;
 
   return (
-    <div className="bg-[#090b0f] text-[#f7efe6]">
-      <div className="bg-[radial-gradient(circle_at_top,_rgba(255,122,26,0.24),_transparent_40%),radial-gradient(circle_at_78%_18%,_rgba(255,153,67,0.1),_transparent_26%),linear-gradient(180deg,_#090b0f_0%,_#0a0c10_56%,_#0d1117_100%)] pb-20 sm:pb-28">
-        <PageShell className="space-y-10 py-10 sm:space-y-14 sm:py-16">
-          <section className="mx-auto max-w-5xl">
-            <PublicSurface className="overflow-hidden border-[#f08a3c]/16 bg-[linear-gradient(180deg,rgba(20,24,31,0.98)_0%,rgba(15,18,24,0.98)_100%)] shadow-[0_40px_120px_rgba(0,0,0,0.48)]">
-              <div className="relative">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_20%_0%,rgba(255,146,61,0.14),transparent_58%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent)]" />
-                <div className="pointer-events-none absolute right-[-8%] bottom-[-10%] h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(255,122,26,0.12),transparent_68%)] blur-2xl" />
-              </div>
+    <div className="bg-background text-foreground">
+      <section
+        className="border-b border-border"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--border) 60%, transparent) 1px, transparent 0)",
+          backgroundSize: "24px 24px",
+        }}
+      >
+        <PageShell className="flex min-h-[calc(100vh-4.5rem)] items-center py-14 sm:py-18" variant="default">
+          <div className="page-hero mx-auto flex w-full max-w-4xl flex-col items-center text-center">
+            <div className="space-y-5">
+              <h1 className="display-serif">Find the nearest shelter.</h1>
+              <p className="mx-auto max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+                Search by address or use your current location. Source and date visible on every
+                record.
+              </p>
+            </div>
 
-              <div className="relative space-y-8 p-6 sm:space-y-10 sm:p-8 lg:p-12">
-                <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.46fr)] lg:items-end">
-                  <div className="space-y-9">
-                    <PublicPageIntro
-                      className="space-y-7"
-                      title="Find the nearest shelter fast."
-                      description="Search by address or use your current location."
-                      meta={
-                        <p className="max-w-xl text-sm leading-6 text-[#bdaa97]">
-                          Source and update date stay visible from search to detail.
-                        </p>
-                      }
-                    />
+            <div className="mt-10 w-full max-w-3xl">
+              <AddressSearchForm />
+            </div>
 
-                    <div className="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(11,13,17,0.98)_0%,rgba(7,9,12,0.98)_100%)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_18px_40px_rgba(0,0,0,0.28)] sm:p-4">
-                      <AddressSearchForm />
-                    </div>
-                  </div>
-
-                  {primaryShelter ? (
-                    <PublicPanel className="border-[#f08a3c]/12 bg-[linear-gradient(180deg,rgba(16,19,25,0.96)_0%,rgba(12,15,20,0.96)_100%)] p-5">
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]"
-                            variant="secondary"
-                          >
-                            {primaryShelter.statusLabel}
-                          </Badge>
-                          <span className="text-sm text-[#bdaa97]">
-                            {primaryShelter.municipality.name}
-                          </span>
-                        </div>
-                        <div className="space-y-1.5">
-                          <p className="text-lg font-semibold tracking-[-0.03em] text-[#fff6ec]">
-                            {primaryShelter.addressLine1}
-                          </p>
-                          <p className="text-sm leading-6 text-[#bdaa97]">
-                            {primaryShelter.postalCode} {primaryShelter.city}
-                          </p>
-                        </div>
-                        <p className="text-sm leading-6 text-[#bdaa97]">
-                          {primaryShelter.primarySourceName ?? "Source pending"}
-                          {primaryShelter.lastVerifiedLabel
-                            ? ` · ${primaryShelter.lastVerifiedLabel}`
-                            : ""}
-                        </p>
-                        <Link
-                          className={cn(
-                            buttonVariants({ variant: "link" }),
-                            "px-0 text-[#ff9c52] hover:text-[#ffb06d]",
-                          )}
-                          href={`/beskyttelsesrum/${primaryShelter.slug}`}
-                        >
-                          Open shelter
-                          <ArrowRight />
-                        </Link>
-                      </div>
-                    </PublicPanel>
-                  ) : null}
-                </div>
-
-                <div className="grid gap-5 border-t border-white/7 pt-6 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,0.38fr)] lg:items-center">
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {[
-                      { label: "Source", value: "Linked on every shelter record" },
-                      { label: "Status", value: "Visible without leaving the main journey" },
-                      { label: "Freshness", value: "Verified and imported dates kept in view" },
-                    ].map((item) => (
-                      <div key={item.label} className="space-y-1.5">
-                        <p className="text-xs text-[#8f8171]">{item.label}</p>
-                        <p className="text-sm leading-6 text-[#d3c3b0]">{item.value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm leading-6 text-[#bdaa97] lg:justify-end">
-                    <Link
-                      className="inline-flex items-center gap-2 text-[#f1e3d1] transition-colors hover:text-[#ffb06d]"
-                      href="/find?q=Kobenhavn"
-                    >
-                      Copenhagen search
-                      <ArrowRight className="size-4 text-[#ff8e42]" />
-                    </Link>
-                    <Link
-                      className="inline-flex items-center gap-2 text-[#bdaa97] transition-colors hover:text-[#ffb06d]"
-                      href="/om-data"
-                    >
-                      About the data
-                      <ArrowRight className="size-4 text-[#ff8e42]" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </PublicSurface>
-          </section>
+            <p className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 font-mono text-[0.72rem] tracking-[0.14em] text-muted-foreground uppercase sm:text-[0.78rem]">
+              <span>BBR + DAR official data</span>
+              <span aria-hidden="true">›</span>
+              <span>Updated daily</span>
+              <span aria-hidden="true">›</span>
+              <span>~3.4M registered spaces</span>
+            </p>
+          </div>
         </PageShell>
-      </div>
+      </section>
+
+      {primaryShelter ? (
+        <section className="py-14 sm:py-18">
+          <PageShell variant="default">
+            <div className="space-y-6 border border-border bg-card px-6 py-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:px-8 sm:py-8">
+              <p className="font-mono text-[0.72rem] tracking-[0.14em] text-muted-foreground uppercase">
+                Recently verified shelter
+              </p>
+
+              <div className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(16rem,0.8fr)] lg:items-start">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-3xl leading-tight text-foreground sm:text-4xl">
+                      {primaryShelter.addressLine1}
+                    </p>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      {primaryShelter.municipality.name}
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-mono text-3xl font-bold tracking-[-0.03em] text-foreground sm:text-4xl">
+                      {primaryShelter.capacity}
+                    </p>
+                    <p className="text-sm text-muted-foreground">spaces</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pl-6 lg:pt-0">
+                  <Badge className="w-fit bg-[var(--status-active-bg)] text-[var(--status-active)] hover:bg-[var(--status-active-bg)]">
+                    {primaryShelter.statusLabel}
+                  </Badge>
+                  <div className="space-y-1 text-sm leading-6 text-muted-foreground">
+                    <p>{primaryShelter.primarySourceName ?? "Source pending"}</p>
+                    <p>{primaryShelter.lastVerifiedLabel ?? "Verification date not listed"}</p>
+                  </div>
+                  <Link
+                    className="inline-block text-sm text-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-primary"
+                    href={`/beskyttelsesrum/${primaryShelter.slug}`}
+                  >
+                    Open shelter record →
+                  </Link>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border pt-5 text-sm">
+                <Link
+                  className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
+                  href="/find?q=Kobenhavn"
+                >
+                  Browse Copenhagen
+                </Link>
+                <Link
+                  className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
+                  href="/om-data"
+                >
+                  About the data
+                </Link>
+              </div>
+            </div>
+          </PageShell>
+        </section>
+      ) : null}
     </div>
   );
 }

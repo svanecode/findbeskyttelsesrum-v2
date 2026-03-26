@@ -1,16 +1,4 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button-variants";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import type { MunicipalityShelterListItem } from "@/lib/supabase/queries";
 
 type MunicipalityShelterCardProps = {
@@ -18,43 +6,35 @@ type MunicipalityShelterCardProps = {
 };
 
 export function MunicipalityShelterCard({ shelter }: MunicipalityShelterCardProps) {
+  const statusColor =
+    shelter.status === "active"
+      ? "var(--status-active)"
+      : shelter.status === "under_review"
+        ? "var(--status-under-review)"
+        : "var(--status-closed)";
+  const address = `${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}`;
+  const rowLabel = shelter.name ? `${shelter.name} · ${address}` : address;
+
   return (
-    <Card className="border border-border/70 bg-card/95">
-      <CardHeader className="gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{shelter.statusLabel}</Badge>
-          <Badge variant="secondary">
-            {shelter.dataQualityScore !== null
-              ? `Quality ${shelter.dataQualityScore}/100`
-              : shelter.qualityState}
-          </Badge>
-        </div>
-        <div className="space-y-1">
-          <CardTitle>{shelter.name || "Unnamed shelter record"}</CardTitle>
-          <CardDescription>
-            {shelter.addressLine1}, {shelter.postalCode} {shelter.city}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm text-muted-foreground">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <p className="font-medium text-foreground">Primary source</p>
-            <p>{shelter.primarySourceName ?? "Source still being connected"}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="font-medium text-foreground">Capacity</p>
-            <p>{shelter.capacity} people</p>
+    <Link
+      className="block transition-colors hover:bg-muted/50"
+      href={`/beskyttelsesrum/${shelter.slug}`}
+    >
+      <div className="grid gap-3 px-1 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-2">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="mt-1 size-2 shrink-0 rounded-full"
+            style={{ backgroundColor: statusColor }}
+          />
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-foreground">{rowLabel}</p>
           </div>
         </div>
-        <p className="leading-6">{shelter.summary}</p>
-      </CardContent>
-      <CardFooter className="justify-end">
-        <Link className={buttonVariants({ variant: "link" })} href={`/beskyttelsesrum/${shelter.slug}`}>
-          Open shelter
-          <ArrowRight />
-        </Link>
-      </CardFooter>
-    </Card>
+        <div className="text-left sm:text-right">
+          <p className="font-mono text-sm text-foreground">{shelter.capacity} spaces</p>
+        </div>
+      </div>
+    </Link>
   );
 }

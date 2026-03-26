@@ -50,6 +50,8 @@ type ShelterRow = {
   last_imported_at?: string | null;
   canonical_source_name?: string | null;
   canonical_source_reference?: string | null;
+  byg021_bygningens_anvendelse?: number | string | null;
+  byg021BygningensAnvendelse?: number | string | null;
   municipality_id?: string;
   municipalities?: MunicipalityRelation;
   shelter_sources?: SourceRow[] | null;
@@ -105,7 +107,10 @@ type ShelterDetailRow = Pick<
   | "status"
   | "accessibility_notes"
   | "municipalities"
->;
+> & {
+  byg021_bygningens_anvendelse?: number | string | null;
+  byg021BygningensAnvendelse?: number | string | null;
+};
 
 type MunicipalityShelterRow = Pick<
   ShelterRow,
@@ -161,9 +166,11 @@ export type ShelterDetail = {
   city: string;
   latitude: number | null;
   longitude: number | null;
+  bbrUsageCode: number | null;
   summary: string;
   sourceSummary: string;
   capacity: number;
+  status: ShelterStatus;
   statusLabel: string;
   primarySourceName: string | null;
   primarySourceTypeLabel: string | null;
@@ -198,6 +205,13 @@ export type MunicipalityDetail = {
   shelters: MunicipalityShelterListItem[];
 };
 
+export type MunicipalitySummary = {
+  slug: string;
+  name: string;
+  shelterCount: number;
+  totalCapacity: number;
+};
+
 export type MunicipalityShelterListItem = {
   id: string;
   slug: string;
@@ -207,6 +221,7 @@ export type MunicipalityShelterListItem = {
   city: string;
   summary: string;
   capacity: number;
+  status: ShelterStatus;
   statusLabel: string;
   primarySourceName: string | null;
   dataQualityScore: number | null;
@@ -224,6 +239,7 @@ export type SearchShelterResult = {
   longitude: number | null;
   summary: string;
   capacity: number;
+  status: ShelterStatus;
   statusLabel: string;
   primarySourceName: string | null;
   dataQualityScore: number | null;
@@ -302,11 +318,11 @@ async function createAppV2ReadClient() {
 function formatStatus(status: ShelterStatus) {
   switch (status) {
     case "active":
-      return "Active";
+      return "Aktiv";
     case "temporarily_closed":
-      return "Temporarily closed";
+      return "Midlertidigt lukket";
     case "under_review":
-      return "Under review";
+      return "BBR-registreret";
     default:
       return status;
   }
@@ -382,6 +398,16 @@ function parseCoordinate(value: number | string | null | undefined) {
   }
 
   const parsed = typeof value === "number" ? value : Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseInteger(value: number | string | null | undefined) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const parsed = typeof value === "number" ? value : Number.parseInt(value, 10);
 
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -623,20 +649,37 @@ export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]>
 export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetail | null> => {
   const publicSupabase = await createAppV2ReadClient();
 
-  const shelterResponse = await publicSupabase
-    .from("shelters")
-    .select(
-      "id, slug, name, address_line1, postal_code, city, latitude, longitude, summary, source_summary, capacity, status, accessibility_notes, municipality_id, municipalities(id, slug, name)",
-    )
-    .eq("import_state", publicShelterImportState)
-    .eq("slug", slug)
-    .maybeSingle();
+  const shelterSelects = [
+    "id, slug, name, address_line1, postal_code, city, latitude, longitude, byg021_bygningens_anvendelse, summary, source_summary, capacity, status, accessibility_notes, municipality_id, municipalities(id, slug, name)",
+    "id, slug, name, address_line1, postal_code, city, latitude, longitude, byg021BygningensAnvendelse, summary, source_summary, capacity, status, accessibility_notes, municipality_id, municipalities(id, slug, name)",
+    "id, slug, name, address_line1, postal_code, city, latitude, longitude, summary, source_summary, capacity, status, accessibility_notes, municipality_id, municipalities(id, slug, name)",
+  ];
 
-  if (shelterResponse.error || !shelterResponse.data) {
+  let shelterResponse: { data: ShelterDetailRow | null; error: Error | null } | null = null;
+
+  for (const selectClause of shelterSelects) {
+    const response = await publicSupabase
+      .from("shelters")
+      .select(selectClause)
+      .eq("import_state", publicShelterImportState)
+      .eq("slug", slug)
+      .maybeSingle();
+
+    shelterResponse = {
+      data: (response.data as ShelterDetailRow | null) ?? null,
+      error: response.error,
+    };
+
+    if (!shelterResponse.error) {
+      break;
+    }
+  }
+
+  if (!shelterResponse || shelterResponse.error || !shelterResponse.data) {
     return null;
   }
 
-  const shelter = shelterResponse.data as ShelterDetailRow;
+  const shelter = shelterResponse.data;
 
   const sourcesResponse = await publicSupabase
     .from("shelter_sources")
@@ -657,7 +700,17 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
   })) ?? [];
 
   const primarySource = getPrimarySource(sourcesResponse.data as SourceRow[] | null);
-  const publicNotes = primarySource?.notes ?? null;
+  const publicNotes =
+    primarySource?.notes
+      ?.split("\n")
+      .map((note) => note.trim())
+      .filter(
+        (note) =>
+          note.length > 0 &&
+          !note.includes("Normalized from BBR") &&
+          !note.includes("DAR address enrichment"),
+      )
+      .join("\n") || null;
   let activeOverride: ShelterOverrideRow | null = null;
 
   try {
@@ -701,9 +754,13 @@ export const getShelterBySlug = cache(async (slug: string): Promise<ShelterDetai
     city: effectiveCity,
     latitude: parseCoordinate(shelter.latitude),
     longitude: parseCoordinate(shelter.longitude),
+    bbrUsageCode: parseInteger(
+      shelter.byg021_bygningens_anvendelse ?? shelter.byg021BygningensAnvendelse ?? null,
+    ),
     summary: getShelterSummary(effectiveSummary, municipality),
     sourceSummary: getSourceSummary(shelter.source_summary, primarySource ?? null),
     capacity: effectiveCapacity,
+    status: effectiveStatus,
     statusLabel: formatStatus(effectiveStatus),
     primarySourceName: primarySource?.source_name ?? null,
     primarySourceTypeLabel: primarySource ? formatSourceType(primarySource.source_type) : null,
@@ -761,6 +818,7 @@ export const getMunicipalityBySlug = cache(async (slug: string): Promise<Municip
       city: effectiveShelter.city,
       summary: getShelterSummary(effectiveShelter.summary, municipalityRow),
       capacity: effectiveShelter.capacity,
+      status: effectiveShelter.status,
       statusLabel: formatStatus(effectiveShelter.status),
       primarySourceName: primarySource?.source_name ?? null,
       dataQualityScore: null,
@@ -777,6 +835,39 @@ export const getMunicipalityBySlug = cache(async (slug: string): Promise<Municip
     hasShelters: shelters.length > 0,
     shelters,
   };
+});
+
+export const getMunicipalitySummaries = cache(async (): Promise<MunicipalitySummary[]> => {
+  const supabase = await createAppV2ReadClient();
+  const sheltersResponse = await supabase
+    .from("shelters")
+    .select("capacity, municipalities(id, slug, name)")
+    .eq("import_state", publicShelterImportState);
+
+  const shelterRows =
+    (sheltersResponse.data as Array<Pick<ShelterRow, "capacity" | "municipalities">> | null) ?? [];
+
+  const summaries = new Map<string, MunicipalitySummary>();
+
+  for (const shelter of shelterRows) {
+    const municipality = mapMunicipality(shelter.municipalities);
+    const existing = summaries.get(municipality.slug);
+
+    if (existing) {
+      existing.shelterCount += 1;
+      existing.totalCapacity += shelter.capacity;
+      continue;
+    }
+
+    summaries.set(municipality.slug, {
+      slug: municipality.slug,
+      name: municipality.name,
+      shelterCount: 1,
+      totalCapacity: shelter.capacity,
+    });
+  }
+
+  return Array.from(summaries.values()).sort((left, right) => left.name.localeCompare(right.name));
 });
 
 export async function searchShelters(input: {
@@ -928,6 +1019,7 @@ export async function searchShelters(input: {
       longitude: parseCoordinate(row.longitude),
       summary: getShelterSummary(row.summary, municipality),
       capacity: row.capacity,
+      status: row.status,
       statusLabel: formatStatus(row.status),
       primarySourceName: primarySource?.source_name ?? null,
       dataQualityScore: null,

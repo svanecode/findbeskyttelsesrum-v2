@@ -2,16 +2,132 @@
 
 import { LocateFixed, LoaderCircle, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { startTransition, useState } from "react";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { startTransition, useEffect, useRef, useState } from "react";
 
 export function AddressSearchForm() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [isFetching, setIsFetching] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const trimmedQuery = query.trim();
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    if (trimmedQuery.length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+      setIsFetching(false);
+      return;
+    }
+
+    setIsFetching(true);
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `https://api.dataforsyningen.dk/autocomplete?q=${encodeURIComponent(trimmedQuery)}&type=adresse&per_side=6&fuzzy=`,
+        );
+
+        if (!response.ok) {
+          throw new Error("Autocomplete request failed.");
+        }
+
+        const data = (await response.json()) as Array<{ tekst: string }>;
+        const nextSuggestions = data.map((item) => item.tekst);
+
+        setSuggestions(nextSuggestions);
+        setShowSuggestions(nextSuggestions.length > 0);
+        setActiveIndex(-1);
+      } catch {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        setActiveIndex(-1);
+      } finally {
+        setIsFetching(false);
+      }
+    }, 280);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [query]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      if (blurTimerRef.current) {
+        clearTimeout(blurTimerRef.current);
+      }
+    };
+  }, []);
+
+  function selectSuggestion(suggestion: string) {
+    setQuery(suggestion);
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setActiveIndex(-1);
+    startTransition(() => {
+      router.push(`/find?q=${encodeURIComponent(suggestion)}`);
+    });
+  }
+
+  function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setShowSuggestions(suggestions.length > 0);
+      setActiveIndex((currentIndex) => Math.min(currentIndex + 1, suggestions.length - 1));
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((currentIndex) => Math.max(currentIndex - 1, -1));
+      return;
+    }
+
+    if (event.key === "Enter" && activeIndex >= 0) {
+      event.preventDefault();
+      selectSuggestion(suggestions[activeIndex]);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    }
+  }
+
+  function handleInputBlur() {
+    blurTimerRef.current = setTimeout(() => {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    }, 150);
+  }
+
+  function handleInputFocus() {
+    if (blurTimerRef.current) {
+      clearTimeout(blurTimerRef.current);
+    }
+
+    if (suggestions.length > 0) {
+      setShowSuggestions(true);
+    }
+  }
 
   function handleUseLocation() {
     if (!navigator.geolocation) {
@@ -56,38 +172,58 @@ export function AddressSearchForm() {
     <div className="space-y-3">
       <form
         action="/find"
-        className="grid gap-3 rounded-[1.35rem] border border-white/7 bg-[#0a0d12] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] lg:grid-cols-[minmax(0,1fr)_auto]"
+        className="relative grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
       >
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-5 size-5 -translate-y-1/2 text-[#9f8d7b]" />
-          <Input
-            className="h-[4.35rem] rounded-[1.1rem] border-white/8 bg-[#080a0e] pl-13 text-[1.05rem] text-[#fff5ea] placeholder:text-[#9f8d7b] shadow-none"
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            className="h-[52px] w-full border border-border bg-white pl-11 pr-4 text-base text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)] outline-none placeholder:text-muted-foreground focus:border-foreground"
             name="q"
             onChange={(event) => setQuery(event.target.value)}
+            onBlur={handleInputBlur}
+            onFocus={handleInputFocus}
+            onKeyDown={handleInputKeyDown}
             placeholder="Enter an address, area, or postcode"
             value={query}
           />
+          {showSuggestions && suggestions.length > 0 ? (
+            <div
+              className="absolute top-full right-0 left-0 z-50 border border-border border-t-0 bg-card shadow-[0_4px_12px_rgba(0,0,0,0.08)]"
+              style={{ borderRadius: "0 0 2px 2px" }}
+            >
+              {suggestions.map((suggestion, index) => (
+                <div
+                  key={`${suggestion}-${index}`}
+                  className="cursor-pointer px-11 py-[10px] text-[0.9rem]"
+                  onMouseDown={() => selectSuggestion(suggestion)}
+                  style={{
+                    backgroundColor: activeIndex === index ? "var(--muted)" : "transparent",
+                  }}
+                >
+                  {suggestion}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
-        <Button
-          className="h-[4.35rem] w-full rounded-[1.1rem] bg-[#ff7a1a] px-7 text-[1rem] font-semibold text-[#1a1009] shadow-[0_10px_24px_rgba(255,122,26,0.24)] hover:bg-[#ff8f39] lg:w-auto"
-          size="lg"
+        <button
+          className="h-[52px] w-full bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:opacity-95 sm:w-auto"
           type="submit"
         >
           Search
-        </Button>
+        </button>
       </form>
-      <Button
-        className="h-12 rounded-[1.2rem] border-white/10 bg-[#151922] px-5 text-[#f5ecdf] hover:bg-[#1b202b]"
+      <button
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground hover:underline hover:decoration-1 hover:underline-offset-4"
         disabled={isLocating}
         onClick={handleUseLocation}
         type="button"
-        variant="outline"
       >
-        {isLocating ? <LoaderCircle className="animate-spin" /> : <LocateFixed />}
+        {isLocating ? <LoaderCircle className="size-4 animate-spin" /> : <LocateFixed className="size-4" />}
         Use my location
-      </Button>
+      </button>
       {locationMessage ? (
-        <p className="text-sm leading-6 text-[#a99986]">{locationMessage}</p>
+        <p className="text-sm leading-6 text-muted-foreground">{locationMessage}</p>
       ) : null}
     </div>
   );

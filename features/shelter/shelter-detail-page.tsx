@@ -1,21 +1,10 @@
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Compass } from "lucide-react";
 
-import {
-  DataStrip,
-  MetadataItem,
-  MetadataList,
-  PublicPageIntro,
-  PublicPanel,
-  PublicSurface,
-} from "@/components/shared/public-primitives";
 import { PageShell } from "@/components/shared/page-shell";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { cn } from "@/lib/utils";
+import { getBbrUsageLabel } from "@/lib/bbr-usage-codes";
 import type { ShelterDetail } from "@/lib/supabase/queries";
 
-import { createMapsUrl } from "./lib/maps";
+import { ShelterDetailMap } from "./shelter-detail-map";
 import { ReportIssueForm } from "./report-issue-form";
 
 type ShelterDetailPageProps = {
@@ -36,26 +25,26 @@ function buildNearbySearchUrl(shelter: ShelterDetail) {
 }
 
 export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
-  const mapsUrl = createMapsUrl(shelter.latitude, shelter.longitude, shelter.name);
+  const mapsUrl =
+    shelter.latitude !== null && shelter.longitude !== null
+      ? `https://maps.google.com/?q=${shelter.latitude},${shelter.longitude}`
+      : null;
   const nearbySearchUrl = buildNearbySearchUrl(shelter);
-  const addressLabel = `${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}`;
+  const buildingType = getBbrUsageLabel(shelter.bbrUsageCode);
+  const shortReference = shelter.primarySourceReference
+    ? shelter.primarySourceReference.slice(-8)
+    : null;
 
   return (
-    <div className="bg-[#090b0f] text-[#f7efe6]">
-      <PageShell className="space-y-10 py-10 sm:space-y-12 sm:py-14">
-        <section className="space-y-8">
-          <PublicPageIntro
-            title={shelter.name || shelter.addressLine1 || "Shelter record"}
-            description={addressLabel}
-            meta={
-              <div className="flex flex-wrap items-center gap-2 text-sm text-[#b9a995]">
-                <Badge className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]" variant="secondary">
-                  {shelter.statusLabel}
-                </Badge>
-                <span>{shelter.capacity} people</span>
+    <div className="bg-background text-foreground">
+      <PageShell className="py-10 sm:py-14" variant="narrow">
+        <div className="mx-auto max-w-2xl space-y-10 lg:max-w-none">
+          <section className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {shelter.municipality.slug !== "unknown" ? (
                   <Link
-                    className="text-[#f4dfc7] underline decoration-white/20 underline-offset-4"
+                    className="transition-colors hover:text-foreground"
                     href={`/kommune/${shelter.municipality.slug}`}
                   >
                     {shelter.municipality.name}
@@ -63,140 +52,98 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
                 ) : (
                   <span>{shelter.municipality.name}</span>
                 )}
+                <span aria-hidden="true">›</span>
+                <span>{shelter.addressLine1}</span>
               </div>
-            }
-          />
 
-          <DataStrip
-            items={[
-              {
-                label: "Source",
-                value: shelter.primarySourceName ?? "Source pending",
-              },
-              {
-                label: "Verified",
-                value: shelter.lastVerifiedLabel ?? "Not listed",
-              },
-              {
-                label: "Imported",
-                value: shelter.lastImportedLabel ?? "Not listed",
-              },
-            ]}
-          />
-        </section>
+              <div className="space-y-3">
+                <h1 className="font-[family-name:var(--font-instrument-serif)] text-[2.2rem] leading-tight tracking-[-0.03em] text-foreground sm:text-[2.7rem]">
+                  {shelter.addressLine1 || shelter.name || "Shelter record"}
+                </h1>
+                <p className="font-mono text-sm text-muted-foreground">
+                  {shelter.postalCode} {shelter.city}
+                </p>
+              </div>
 
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
-          <div className="space-y-8">
-            <PublicPanel className="space-y-6 border-white/10 bg-[#10141b]">
-              <p className="text-base leading-7 text-[#f4ebdf]">{shelter.summary}</p>
+            </div>
+          </section>
 
-              <MetadataList className="gap-y-5">
-                <MetadataItem label="Status" value={shelter.statusLabel} />
-                <MetadataItem label="Capacity" value={`${shelter.capacity} people`} />
-                <MetadataItem
-                  label="Accessibility"
-                  value={shelter.accessibilityNotes ?? "No accessibility notes published."}
-                />
-                <MetadataItem
-                  label="Reference"
-                  value={shelter.primarySourceReference ?? "No public reference listed."}
-                />
-              </MetadataList>
-
-              {(shelter.publicNotes || shelter.sourceSummary) ? (
-                <div className="space-y-4 border-t border-white/8 pt-5 text-sm leading-6 text-[#b8a793]">
-                  {shelter.sourceSummary ? <p>{shelter.sourceSummary}</p> : null}
-                  {shelter.publicNotes ? <p>{shelter.publicNotes}</p> : null}
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,0.6fr)_minmax(0,0.4fr)] lg:items-start">
+            <main className="space-y-6 border border-border bg-card p-6 sm:p-8">
+              <dl className="space-y-6">
+                <div className="space-y-2">
+                  <dt className="text-[0.7rem] tracking-[0.08em] text-muted-foreground uppercase">
+                    Kapacitet
+                  </dt>
+                  <dd className="font-mono text-[1.4rem] text-foreground">{shelter.capacity} pladser</dd>
                 </div>
+
+                {buildingType ? (
+                  <div className="space-y-2">
+                    <dt className="text-[0.7rem] tracking-[0.08em] text-muted-foreground uppercase">
+                      Bygningstype
+                    </dt>
+                    <dd className="text-base text-foreground">{buildingType}</dd>
+                  </div>
+                ) : null}
+
+                <div className="space-y-2">
+                  <dt className="text-[0.7rem] tracking-[0.08em] text-muted-foreground uppercase">
+                    Adresse
+                  </dt>
+                  <dd className="space-y-1">
+                    <p className="text-base text-foreground">{shelter.addressLine1}</p>
+                    <p className="text-base text-foreground">
+                      {shelter.postalCode} {shelter.city}, {shelter.municipality.name}
+                    </p>
+                  </dd>
+                </div>
+              </dl>
+            </main>
+
+            <aside className="space-y-6">
+              {shelter.latitude !== null && shelter.longitude !== null ? (
+                <section className="space-y-3">
+                  <ShelterDetailMap latitude={shelter.latitude} longitude={shelter.longitude} />
+                  <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
+                    {mapsUrl ? (
+                      <a
+                        className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
+                        href={mapsUrl}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Open in maps
+                      </a>
+                    ) : null}
+                    {nearbySearchUrl ? (
+                      <Link
+                        className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
+                        href={nearbySearchUrl}
+                      >
+                        Shelters nearby
+                      </Link>
+                    ) : null}
+                  </div>
+                </section>
               ) : null}
 
-              {shelter.sources.length > 1 ? (
-                <div className="space-y-3 border-t border-white/8 pt-5">
-                  {shelter.sources.slice(1).map((source) => (
-                    <div
-                      key={source.id}
-                      className="flex flex-col gap-1 text-sm leading-6 text-[#b8a793] sm:flex-row sm:justify-between sm:gap-4"
-                    >
-                      <p className="text-[#f4ebdf]">{source.sourceName}</p>
-                      <p className="sm:text-right">
-                        {source.sourceTypeLabel}
-                        {source.lastVerifiedLabel ? ` · ${source.lastVerifiedLabel}` : ""}
-                        {source.importedAtLabel ? ` · ${source.importedAtLabel}` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {shelter.primarySourceUrl ? (
-                <a
-                  className={cn(buttonVariants({ variant: "link" }), "px-0 text-[#ff9c52] hover:text-[#ffb06d]")}
-                  href={shelter.primarySourceUrl}
-                  rel="noreferrer"
-                  target="_blank"
+              <div className="space-y-4">
+                <Link
+                  className="inline-block text-sm text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
+                  href="/find"
                 >
-                  Open source
-                  <ArrowUpRight />
-                </a>
-              ) : null}
-            </PublicPanel>
-
-            <PublicSurface className="border-white/10 bg-[#10141b] p-5 sm:p-6">
-              <ReportIssueForm shelterId={shelter.id} shelterName={shelter.name} />
-            </PublicSurface>
+                  Back to search
+                </Link>
+                <ReportIssueForm shelterId={shelter.id} shelterName={shelter.name} />
+              </div>
+            </aside>
           </div>
 
-          <aside className="space-y-4">
-            <PublicPanel className="space-y-4 border-white/10 bg-[#0e1117]">
-              <div className="space-y-1 text-sm leading-6 text-[#b8a793]">
-                <p className="text-[#f4ebdf]">{addressLabel}</p>
-                {shelter.latitude !== null && shelter.longitude !== null ? (
-                  <p>
-                    {shelter.latitude.toFixed(6)}, {shelter.longitude.toFixed(6)}
-                  </p>
-                ) : (
-                  <p>Coordinates not published.</p>
-                )}
-              </div>
-
-              {mapsUrl ? (
-                <a
-                  className={buttonVariants({
-                    className:
-                      "w-full rounded-2xl border-white/10 bg-[#151922] text-[#f7efe6] hover:bg-[#1b202b]",
-                    variant: "outline",
-                  })}
-                  href={mapsUrl}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <Compass />
-                  Open in maps
-                </a>
-              ) : null}
-
-              {nearbySearchUrl ? (
-                <Link
-                  className={buttonVariants({
-                    className:
-                      "w-full rounded-2xl border-white/10 bg-[#151922] text-[#f7efe6] hover:bg-[#1b202b]",
-                    variant: "outline",
-                  })}
-                  href={nearbySearchUrl}
-                >
-                  Nearby shelters
-                  <ArrowRight />
-                </Link>
-              ) : null}
-
-              <Link
-                className={cn(buttonVariants({ variant: "ghost" }), "px-0 text-[#ff9c52] hover:text-[#ffb06d]")}
-                href="/find"
-              >
-                Back to search
-              </Link>
-            </PublicPanel>
-          </aside>
+          <p className="text-center font-mono text-[0.72rem] text-muted-foreground">
+            Data: BBR · Importeret {shelter.lastImportedLabel ?? "Ikke angivet"}
+            {shortReference ? ` · ${shortReference}` : ""}
+          </p>
         </div>
       </PageShell>
     </div>

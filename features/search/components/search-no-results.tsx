@@ -1,9 +1,5 @@
 import Link from "next/link";
 
-import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-
 type SearchNoResultsProps = {
   query: string | null;
   municipalityName: string | null;
@@ -39,30 +35,27 @@ export function SearchNoResults({
     .join(" ");
 
   return (
-    <Card className="border border-dashed border-white/10 bg-[#12151b] py-0 text-[#f7efe6]">
-      <CardHeader className="gap-3">
-        <CardTitle className="text-[#fff7ef]">No shelters matched this search.</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm leading-6 text-[#b8a793]">
+    <div className="space-y-5 bg-background py-10 sm:py-14">
+      <h2 className="font-[family-name:var(--font-instrument-serif)] text-[1.8rem] leading-tight text-foreground">
+        No shelters matched.
+      </h2>
+      <div className="space-y-4 text-sm leading-6 text-muted-foreground">
         {reasons ? <p>{reasons}</p> : null}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-3">
           <Link
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "border-white/10 bg-[#0d1015] text-[#f7efe6] hover:bg-[#171b23]",
-            )}
+            className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
             href="/find?q=2300"
           >
             Try postcode search
           </Link>
           <Link
-            className={cn(buttonVariants({ variant: "ghost" }), "px-0 text-[#ff9c52] hover:text-[#ffb06d]")}
+            className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
             href="/find"
           >
             Clear search
           </Link>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

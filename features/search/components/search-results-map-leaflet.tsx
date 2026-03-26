@@ -83,14 +83,14 @@ export function SearchResultsMapLeaflet({
 
   if (mappedResults.length === 0) {
     return (
-      <Card className="border border-dashed border-white/10 bg-[#12151b] text-[#f7efe6]">
+      <Card className="border border-dashed border-border bg-card text-foreground">
         <CardHeader className="gap-3">
           <Badge className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]" variant="secondary">
             Map unavailable
           </Badge>
-          <CardTitle className="text-[#fff7ef]">No result coordinates available.</CardTitle>
+          <CardTitle className="text-foreground">No result coordinates available.</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm leading-6 text-[#b8a793]">
+        <CardContent className="text-sm leading-6 text-muted-foreground">
           The current result set can still be reviewed in the list, but none of these shelters have
           public coordinates yet.
         </CardContent>
@@ -99,19 +99,19 @@ export function SearchResultsMapLeaflet({
   }
 
   return (
-    <Card className="overflow-hidden border border-white/10 bg-[#12151b] text-[#f7efe6]">
-      <CardHeader className="gap-3 border-b border-white/8">
+    <Card className="overflow-hidden border border-border bg-card text-foreground">
+      <CardHeader className="gap-3 border-b border-border">
         <div className="flex flex-wrap items-center gap-2">
           <Badge className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]" variant="secondary">
             {mappedResults.length} markers
           </Badge>
           {results.length !== mappedResults.length ? (
-            <Badge className="border-white/10 text-[#b8a793]" variant="outline">
+            <Badge className="border-border text-muted-foreground" variant="outline">
               {results.length - mappedResults.length} without coordinates
             </Badge>
           ) : null}
         </div>
-        <CardTitle className="text-[#fff7ef]">Map</CardTitle>
+        <CardTitle className="text-foreground">Map</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <div className="h-[360px] w-full sm:h-[440px] lg:h-[620px]">

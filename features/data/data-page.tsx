@@ -5,15 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const cards = [
   {
     title: "Public shelter records",
-    body: "Shelter pages are being retargeted to the dedicated app_v2 shelter tables, separate from the legacy public schema.",
+    body: "All shelters come from the official BBR and DAR registers. Records are updated automatically every day.",
   },
   {
     title: "Source provenance",
-    body: "Each public shelter can carry one or more source records with references, URLs, and verification dates.",
+    body: "Every shelter shows its source, import date, and a direct link to the official register entry.",
   },
   {
     title: "Manual overrides",
-    body: "Operational status changes are stored separately from imports so manual decisions remain auditable.",
+    body: "Editors can correct individual records without altering the underlying official data. Both values stay visible.",
   },
 ];
 
