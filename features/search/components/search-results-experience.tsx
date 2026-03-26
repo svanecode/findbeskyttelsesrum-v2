@@ -25,21 +25,21 @@ export function SearchResultsExperience({ resultSet }: SearchResultsExperiencePr
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-start gap-3 border-b border-white/10 lg:hidden">
+      <div className="flex items-center justify-start gap-3 lg:hidden">
         <button
           className={viewMode === "list"
-            ? "border-b border-[#f7efe6] pb-2 text-sm text-[#fff7ef]"
-            : "border-b border-transparent pb-2 text-sm text-[#b8a793]"}
+            ? "border-b border-foreground pb-2 text-sm text-foreground"
+            : "border-b border-transparent pb-2 text-sm text-muted-foreground"}
           onClick={() => setViewMode("list")}
           type="button"
         >
           List
         </button>
-        <span className="pb-2 text-sm text-[#6f6558]">|</span>
+        <span className="pb-2 text-sm text-muted-foreground">|</span>
         <button
           className={viewMode === "map"
-            ? "border-b border-[#f7efe6] pb-2 text-sm text-[#fff7ef]"
-            : "border-b border-transparent pb-2 text-sm text-[#b8a793]"}
+            ? "border-b border-foreground pb-2 text-sm text-foreground"
+            : "border-b border-transparent pb-2 text-sm text-muted-foreground"}
           onClick={() => setViewMode("map")}
           type="button"
         >

@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
 
-import { PublicPageIntro, PublicSurface } from "@/components/shared/public-primitives";
 import { PageShell } from "@/components/shared/page-shell";
 import { geocodeAddressQuery, type GeocodeResult } from "@/lib/geocoding/dawa";
-import { searchShelters, type SearchShelterResultSet } from "@/lib/supabase/queries";
+import { searchShelters } from "@/lib/supabase/queries";
 
 import { SearchEmptyState } from "./components/search-empty-state";
 import { SearchForm } from "./components/search-form";
@@ -16,6 +15,30 @@ type SearchPageProps = {
   searchParams: SearchPageParams;
 };
 
+function SearchPageHeader({
+  label,
+  title,
+  description,
+}: {
+  label: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <section className="space-y-5">
+      <p className="font-mono text-[0.72rem] tracking-[0.14em] text-muted-foreground uppercase">
+        {label}
+      </p>
+      <div className="space-y-3">
+        <h1 className="font-[family-name:var(--font-instrument-serif)] text-[2.4rem] leading-tight tracking-[-0.03em] text-foreground sm:text-[3.2rem]">
+          {title}
+        </h1>
+        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+    </section>
+  );
+}
+
 export async function SearchPage({ searchParams }: SearchPageProps) {
   const normalized = normalizeSearchParams(searchParams);
   const hasFallbackSearch =
@@ -24,16 +47,17 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
 
   if (!normalized.hasSearchIntent) {
     return (
-      <div className="bg-[#090b0f] text-[#f7efe6]">
+      <div className="bg-background text-foreground">
         <PageShell className="space-y-10 py-10 sm:space-y-12 sm:py-14" variant="wide">
           <div className="mx-auto max-w-4xl space-y-8">
-            <PublicPageIntro
+            <SearchPageHeader
+              label="Find"
               title="Search shelters."
               description="Address, area, postcode, or current location."
             />
-            <PublicSurface className="border-white/10 bg-[#10141b] p-5 sm:p-7">
+            <div className="border border-border bg-card p-5 sm:p-7">
               <SearchForm defaultQuery={normalized.query} municipalitySlug={normalized.municipalitySlug} />
-            </PublicSurface>
+            </div>
             <SearchEmptyState />
           </div>
         </PageShell>
@@ -43,16 +67,17 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
 
   if (normalized.hasInvalidCoordinates && !hasFallbackSearch) {
     return (
-      <div className="bg-[#090b0f] text-[#f7efe6]">
+      <div className="bg-background text-foreground">
         <PageShell className="space-y-10 py-10 sm:space-y-12 sm:py-14" variant="wide">
           <div className="mx-auto max-w-4xl space-y-8">
-            <PublicPageIntro
+            <SearchPageHeader
+              label="Find"
               title="Location search could not be started."
               description="Start a new search."
             />
-            <PublicSurface className="border-white/10 bg-[#10141b] p-5 sm:p-7">
+            <div className="border border-border bg-card p-5 sm:p-7">
               <SearchForm defaultQuery={normalized.query} municipalitySlug={normalized.municipalitySlug} />
-            </PublicSurface>
+            </div>
             <SearchNoResults
               isMunicipalityFilterInvalid={false}
               municipalityName={null}
@@ -134,7 +159,7 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
               ) : null}
             </div>
 
-            <PublicSurface className="border-0 bg-transparent p-0 shadow-none">
+            <div className="border border-border bg-card p-5 sm:p-7">
               <SearchForm
                 compact
                 defaultQuery={normalized.query}
@@ -150,7 +175,7 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
                     : resultSet.coordinates?.longitude ?? null
                 }
               />
-            </PublicSurface>
+            </div>
           </div>
         </div>
 

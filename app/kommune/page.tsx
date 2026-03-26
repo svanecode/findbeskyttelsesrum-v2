@@ -4,6 +4,11 @@ import { PageShell } from "@/components/shared/page-shell";
 import { getMunicipalitySummaries } from "@/lib/supabase/queries";
 
 export const revalidate = 300;
+export const metadata = {
+  title: "Kommuneoversigt",
+  description:
+    "Oversigt over alle danske kommuner med registrerede beskyttelsesrum fra BBR.",
+};
 
 function formatCount(value: number) {
   return new Intl.NumberFormat("da-DK").format(value);

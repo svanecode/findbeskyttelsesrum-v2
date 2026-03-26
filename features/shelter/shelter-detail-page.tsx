@@ -4,7 +4,7 @@ import { PageShell } from "@/components/shared/page-shell";
 import { getBbrUsageLabel } from "@/lib/bbr-usage-codes";
 import type { ShelterDetail } from "@/lib/supabase/queries";
 
-import { ShelterDetailMap } from "./shelter-detail-map";
+import { ShelterDetailMap } from "./shelter-detail-map-dynamic";
 import { ReportIssueForm } from "./report-issue-form";
 
 type ShelterDetailPageProps = {

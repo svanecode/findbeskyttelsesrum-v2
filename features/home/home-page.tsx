@@ -12,6 +12,12 @@ type HomePageProps = {
 
 export function HomePage({ featuredShelters }: HomePageProps) {
   const primaryShelter = featuredShelters[0] ?? null;
+  const statusBadgeClass =
+    primaryShelter?.status === "active"
+      ? "w-fit bg-[var(--status-active-bg)] text-[var(--status-active)] hover:bg-[var(--status-active-bg)]"
+      : primaryShelter?.status === "under_review"
+        ? "w-fit bg-[var(--status-under-review-bg)] text-[var(--status-under-review)] hover:bg-[var(--status-under-review-bg)]"
+        : "w-fit bg-[var(--status-closed-bg)] text-[var(--status-closed)] hover:bg-[var(--status-closed-bg)]";
 
   return (
     <div className="bg-background text-foreground">
@@ -76,7 +82,7 @@ export function HomePage({ featuredShelters }: HomePageProps) {
                 </div>
 
                 <div className="space-y-4 border-t border-border pt-5 lg:border-t-0 lg:border-l lg:pl-6 lg:pt-0">
-                  <Badge className="w-fit bg-[var(--status-active-bg)] text-[var(--status-active)] hover:bg-[var(--status-active-bg)]">
+                  <Badge className={statusBadgeClass}>
                     {primaryShelter.statusLabel}
                   </Badge>
                   <div className="space-y-1 text-sm leading-6 text-muted-foreground">

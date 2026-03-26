@@ -151,6 +151,7 @@ export type FeaturedShelter = {
   city: string;
   summary: string;
   capacity: number;
+  status: ShelterStatus;
   statusLabel: string;
   primarySourceName: string | null;
   lastVerifiedLabel: string | null;
@@ -638,6 +639,7 @@ export async function getFeaturedShelters(limit = 3): Promise<FeaturedShelter[]>
       city: effectiveRow.city,
       summary: getShelterSummary(effectiveRow.summary, municipality),
       capacity: effectiveRow.capacity,
+      status: effectiveRow.status,
       statusLabel: formatStatus(effectiveRow.status),
       primarySourceName: primarySource?.source_name ?? null,
       lastVerifiedLabel: formatDate(primarySource?.last_verified_at ?? null),

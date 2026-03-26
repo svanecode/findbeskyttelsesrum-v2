@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: ShelterRouteProps): Promise<M
 
   return {
     title: `${shelter.name} | ${shelter.city}`,
-    description: `${shelter.name} in ${shelter.municipality.name}. View status, address, source information, and public trust details.`,
+    description: `${shelter.capacity} pladser. ${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}.`,
   };
 }
 

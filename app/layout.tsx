@@ -40,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="da">
       <body
         className={`${geist.variable} ${ibmPlexMono.variable} ${instrumentSerif.variable} min-h-screen bg-background text-foreground antialiased`}
       >

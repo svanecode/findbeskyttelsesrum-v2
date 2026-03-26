@@ -85,7 +85,7 @@ export function SearchResultsMapLeaflet({
     return (
       <Card className="border border-dashed border-border bg-card text-foreground">
         <CardHeader className="gap-3">
-          <Badge className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]" variant="secondary">
+          <Badge className="bg-primary text-primary-foreground" variant="secondary">
             Map unavailable
           </Badge>
           <CardTitle className="text-foreground">No result coordinates available.</CardTitle>
@@ -102,7 +102,7 @@ export function SearchResultsMapLeaflet({
     <Card className="overflow-hidden border border-border bg-card text-foreground">
       <CardHeader className="gap-3 border-b border-border">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]" variant="secondary">
+          <Badge className="bg-primary text-primary-foreground" variant="secondary">
             {mappedResults.length} markers
           </Badge>
           {results.length !== mappedResults.length ? (
@@ -179,24 +179,12 @@ export function SearchResultsMapLeaflet({
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Badge className="border-white/10 text-[#b8a793]" variant="outline">
-                          {result.statusLabel}
-                        </Badge>
+                        <Badge variant="outline">{result.statusLabel}</Badge>
                         {result.distanceKm !== null ? (
-                          <Badge className="border-white/10 text-[#b8a793]" variant="outline">
-                            {formatDistanceLabel(result.distanceKm)}
-                          </Badge>
+                          <Badge variant="outline">{formatDistanceLabel(result.distanceKm)}</Badge>
                         ) : null}
                       </div>
-                      <Link
-                        className={buttonVariants({
-                          className:
-                            "border-white/10 bg-[#0d1015] text-[#f7efe6] hover:bg-[#171b23]",
-                          size: "sm",
-                          variant: "outline",
-                        })}
-                        href={`/beskyttelsesrum/${result.slug}`}
-                      >
+                      <Link className={buttonVariants({ size: "sm", variant: "outline" })} href={`/beskyttelsesrum/${result.slug}`}>
                         Open shelter
                       </Link>
                     </div>
