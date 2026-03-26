@@ -23,7 +23,11 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="w-full rounded-2xl sm:w-auto" disabled={pending} type="submit">
+    <Button
+      className="w-full rounded-2xl bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8f39] sm:w-auto"
+      disabled={pending}
+      type="submit"
+    >
       {pending ? "Submitting report..." : "Submit report"}
     </Button>
   );
@@ -34,7 +38,7 @@ function FieldError({ message }: { message?: string }) {
     return null;
   }
 
-  return <p className="text-sm text-destructive">{message}</p>;
+  return <p className="text-sm text-[#ff8f6b]">{message}</p>;
 }
 
 export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps) {
@@ -49,15 +53,20 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">Report an issue</p>
-        <p className="text-sm leading-6 text-muted-foreground">
+        <p className="text-sm font-medium text-[#fff7ef]">Report an issue</p>
+        <p className="text-sm leading-6 text-[#b8a793]">
           If something looks wrong in the public record for {shelterName}, you can send a short
           report for later review.
         </p>
       </div>
 
       {!showForm ? (
-        <Button className="rounded-2xl" onClick={() => setIsOpen(true)} type="button" variant="outline">
+        <Button
+          className="rounded-2xl border-white/10 bg-[#151922] text-[#f7efe6] hover:bg-[#1b202b]"
+          onClick={() => setIsOpen(true)}
+          type="button"
+          variant="outline"
+        >
           Report an issue
         </Button>
       ) : null}
@@ -67,18 +76,18 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
           <input name="shelterId" type="hidden" value={shelterId} />
 
           {state.status === "success" ? (
-            <div className="rounded-2xl border border-border/80 bg-background p-4 text-sm leading-6 text-muted-foreground">
-              <p className="font-medium text-foreground">Report received</p>
+            <div className="rounded-2xl border border-white/10 bg-[#0d1015] p-4 text-sm leading-6 text-[#b8a793]">
+              <p className="font-medium text-[#fff7ef]">Report received</p>
               <p className="mt-1">{state.message}</p>
             </div>
           ) : (
             <>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground" htmlFor="reportType">
+                <label className="text-sm font-medium text-[#fff7ef]" htmlFor="reportType">
                   Issue type
                 </label>
                 <select
-                  className="flex h-11 w-full rounded-2xl border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                  className="flex h-11 w-full rounded-2xl border border-white/10 bg-[#0d1015] px-3 text-sm text-[#fff7ef] outline-none focus-visible:border-[#ff7a1a] focus-visible:ring-3 focus-visible:ring-[#ff7a1a]/20"
                   defaultValue=""
                   id="reportType"
                   name="reportType"
@@ -96,10 +105,11 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground" htmlFor="message">
+                <label className="text-sm font-medium text-[#fff7ef]" htmlFor="message">
                   Message
                 </label>
                 <Textarea
+                  className="border-white/10 bg-[#0d1015] text-[#fff7ef] placeholder:text-[#9f8d7b]"
                   id="message"
                   name="message"
                   placeholder="Describe what looks wrong or outdated."
@@ -109,27 +119,33 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground" htmlFor="contactEmail">
+                <label className="text-sm font-medium text-[#fff7ef]" htmlFor="contactEmail">
                   Contact email (optional)
                 </label>
                 <Input
+                  className="border-white/10 bg-[#0d1015] text-[#fff7ef] placeholder:text-[#9f8d7b]"
                   id="contactEmail"
                   name="contactEmail"
                   placeholder="name@example.com"
                   type="email"
                 />
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-[#9f8d7b]">
                   Add an email only if you are open to being contacted about this report.
                 </p>
                 <FieldError message={state.fieldErrors.contactEmail} />
               </div>
 
               <FieldError message={state.fieldErrors.form} />
-              {state.message ? <p className="text-sm text-muted-foreground">{state.message}</p> : null}
+              {state.message ? <p className="text-sm text-[#9f8d7b]">{state.message}</p> : null}
 
               <div className="flex flex-wrap gap-3">
                 <SubmitButton />
-                <Button className="rounded-2xl" onClick={() => setIsOpen(false)} type="button" variant="ghost">
+                <Button
+                  className="rounded-2xl text-[#d4c2ae] hover:bg-white/6 hover:text-[#fff5eb]"
+                  onClick={() => setIsOpen(false)}
+                  type="button"
+                  variant="ghost"
+                >
                   Cancel
                 </Button>
               </div>

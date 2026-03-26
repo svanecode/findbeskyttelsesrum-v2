@@ -20,11 +20,11 @@ export function PublicPageIntro({
   return (
     <section className={cn("space-y-5", className)}>
       <div className="space-y-4">
-        <h1 className="max-w-4xl text-balance text-[2rem] font-semibold tracking-[-0.03em] text-foreground sm:text-[2.75rem] lg:text-[3.4rem]">
+        <h1 className="max-w-4xl text-balance text-[2.2rem] font-semibold tracking-[-0.04em] text-[#f7efe6] sm:text-[3rem] lg:text-[3.75rem]">
           {title}
         </h1>
         {description ? (
-          <p className="max-w-2xl text-pretty text-[1.02rem] leading-7 text-muted-foreground">
+          <p className="max-w-2xl text-pretty text-[1.02rem] leading-7 text-[#c8b8a4]">
             {description}
           </p>
         ) : null}
@@ -42,7 +42,12 @@ type PublicSurfaceProps = {
 
 export function PublicSurface({ children, className }: PublicSurfaceProps) {
   return (
-    <div className={cn("rounded-[1.25rem] border border-border/80 bg-card", className)}>
+    <div
+      className={cn(
+        "rounded-[1.5rem] border border-white/10 bg-[#12151b] text-[#f7efe6] shadow-[0_24px_70px_rgba(0,0,0,0.34)]",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -55,7 +60,12 @@ type PublicPanelProps = {
 
 export function PublicPanel({ children, className }: PublicPanelProps) {
   return (
-    <div className={cn("rounded-[1.25rem] border border-border/70 bg-card/70 p-5 sm:p-6", className)}>
+    <div
+      className={cn(
+        "rounded-[1.5rem] border border-white/10 bg-[#0f1218]/92 p-5 text-[#f7efe6] shadow-[0_20px_60px_rgba(0,0,0,0.28)] sm:p-6",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -77,9 +87,9 @@ export function PublicSection({
   return (
     <section className={cn("space-y-4", className)}>
       <div className="space-y-1.5">
-        <h2 className="text-xl font-semibold tracking-[-0.02em] text-foreground">{title}</h2>
+        <h2 className="text-xl font-semibold tracking-[-0.03em] text-[#f7efe6]">{title}</h2>
         {description ? (
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+          <p className="max-w-2xl text-sm leading-6 text-[#b6a692]">{description}</p>
         ) : null}
       </div>
       {children}
@@ -108,11 +118,11 @@ type MetadataItemProps = {
 
 export function MetadataItem({ label, value, className }: MetadataItemProps) {
   return (
-    <div className={cn("space-y-1 border-t border-border/60 pt-3 first:border-t-0 first:pt-0", className)}>
-      <dt className="text-sm text-muted-foreground">
+    <div className={cn("space-y-1 border-t border-white/8 pt-3 first:border-t-0 first:pt-0", className)}>
+      <dt className="text-sm text-[#9e907f]">
         {label}
       </dt>
-      <dd className="text-sm leading-6 text-foreground">{value}</dd>
+      <dd className="text-sm leading-6 text-[#f2e8dc]">{value}</dd>
     </div>
   );
 }
@@ -127,14 +137,14 @@ type DataStripProps = {
 
 export function DataStrip({ items, className }: DataStripProps) {
   return (
-    <div className={cn("border-y border-border/70 py-4 sm:py-5", className)}>
+    <div className={cn("border-y border-white/10 py-4 text-[#f2e8dc] sm:py-5", className)}>
       <dl className="grid gap-4 sm:grid-cols-3">
         {items.map((item) => (
           <div key={item.label} className="space-y-1">
-            <dt className="text-sm text-muted-foreground">
+            <dt className="text-sm text-[#9e907f]">
               {item.label}
             </dt>
-            <dd className="text-sm leading-6 text-foreground">{item.value}</dd>
+            <dd className="text-sm leading-6 text-[#f2e8dc]">{item.value}</dd>
           </div>
         ))}
       </dl>

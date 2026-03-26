@@ -83,12 +83,14 @@ export function SearchResultsMapLeaflet({
 
   if (mappedResults.length === 0) {
     return (
-      <Card className="border border-dashed border-border/80 bg-card/90">
+      <Card className="border border-dashed border-white/10 bg-[#12151b] text-[#f7efe6]">
         <CardHeader className="gap-3">
-          <Badge variant="secondary">Map unavailable</Badge>
-          <CardTitle>No result coordinates available.</CardTitle>
+          <Badge className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]" variant="secondary">
+            Map unavailable
+          </Badge>
+          <CardTitle className="text-[#fff7ef]">No result coordinates available.</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm leading-6 text-muted-foreground">
+        <CardContent className="text-sm leading-6 text-[#b8a793]">
           The current result set can still be reviewed in the list, but none of these shelters have
           public coordinates yet.
         </CardContent>
@@ -97,15 +99,19 @@ export function SearchResultsMapLeaflet({
   }
 
   return (
-    <Card className="overflow-hidden border border-border/70 bg-card/95">
-      <CardHeader className="gap-3 border-b border-border/70">
+    <Card className="overflow-hidden border border-white/10 bg-[#12151b] text-[#f7efe6]">
+      <CardHeader className="gap-3 border-b border-white/8">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{mappedResults.length} markers</Badge>
+          <Badge className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]" variant="secondary">
+            {mappedResults.length} markers
+          </Badge>
           {results.length !== mappedResults.length ? (
-            <Badge variant="outline">{results.length - mappedResults.length} without coordinates</Badge>
+            <Badge className="border-white/10 text-[#b8a793]" variant="outline">
+              {results.length - mappedResults.length} without coordinates
+            </Badge>
           ) : null}
         </div>
-        <CardTitle>Map view</CardTitle>
+        <CardTitle className="text-[#fff7ef]">Map</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <div className="h-[360px] w-full sm:h-[440px] lg:h-[620px]">
@@ -127,9 +133,9 @@ export function SearchResultsMapLeaflet({
               <CircleMarker
                 center={[coordinates.latitude, coordinates.longitude]}
                 pathOptions={{
-                  color: "#27566e",
-                  fillColor: "#27566e",
-                  fillOpacity: 0.2,
+                  color: "#ff7a1a",
+                  fillColor: "#ff7a1a",
+                  fillOpacity: 0.16,
                   weight: 2,
                 }}
                 radius={10}
@@ -155,9 +161,9 @@ export function SearchResultsMapLeaflet({
                     click: () => onSelectResult(result.id),
                   }}
                   pathOptions={{
-                    color: isSelected ? "#133746" : "#27566e",
-                    fillColor: isSelected ? "#133746" : "#5f8ba1",
-                    fillOpacity: isSelected ? 0.95 : 0.75,
+                    color: isSelected ? "#ffb06d" : "#ff7a1a",
+                    fillColor: isSelected ? "#ffb06d" : "#ff7a1a",
+                    fillOpacity: isSelected ? 0.96 : 0.72,
                     weight: isSelected ? 3 : 2,
                   }}
                   radius={isSelected ? 9 : 7}
@@ -173,13 +179,22 @@ export function SearchResultsMapLeaflet({
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">{result.statusLabel}</Badge>
+                        <Badge className="border-white/10 text-[#b8a793]" variant="outline">
+                          {result.statusLabel}
+                        </Badge>
                         {result.distanceKm !== null ? (
-                          <Badge variant="outline">{formatDistanceLabel(result.distanceKm)}</Badge>
+                          <Badge className="border-white/10 text-[#b8a793]" variant="outline">
+                            {formatDistanceLabel(result.distanceKm)}
+                          </Badge>
                         ) : null}
                       </div>
                       <Link
-                        className={buttonVariants({ size: "sm", variant: "outline" })}
+                        className={buttonVariants({
+                          className:
+                            "border-white/10 bg-[#0d1015] text-[#f7efe6] hover:bg-[#171b23]",
+                          size: "sm",
+                          variant: "outline",
+                        })}
                         href={`/beskyttelsesrum/${result.slug}`}
                       >
                         Open shelter

@@ -33,12 +33,14 @@ export function SearchResultsExperience({ resultSet }: SearchResultsExperiencePr
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 lg:hidden">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">{resultSet.results.length} results</Badge>
-          {mappedCount > 0 ? <Badge variant="outline">{mappedCount} mapped</Badge> : null}
+          <Badge className="bg-[#ff7a1a] text-[#1a1009] hover:bg-[#ff8b36]" variant="secondary">
+            {resultSet.results.length} results
+          </Badge>
+          {mappedCount > 0 ? <Badge className="border-white/10 text-[#b8a793]" variant="outline">{mappedCount} mapped</Badge> : null}
         </div>
-        <div className="inline-flex rounded-2xl border border-border/80 bg-card p-1">
+        <div className="inline-flex rounded-2xl border border-white/10 bg-[#12151b] p-1">
           <Button
-            className="rounded-xl"
+            className="rounded-xl text-[#d4c2ae] hover:bg-white/6 hover:text-[#fff5eb]"
             onClick={() => setViewMode("list")}
             size="sm"
             type="button"
@@ -47,7 +49,7 @@ export function SearchResultsExperience({ resultSet }: SearchResultsExperiencePr
             List
           </Button>
           <Button
-            className="rounded-xl"
+            className="rounded-xl text-[#d4c2ae] hover:bg-white/6 hover:text-[#fff5eb]"
             onClick={() => setViewMode("map")}
             size="sm"
             type="button"

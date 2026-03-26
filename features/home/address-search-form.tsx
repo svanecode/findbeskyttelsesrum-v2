@@ -54,23 +54,30 @@ export function AddressSearchForm() {
 
   return (
     <div className="space-y-3">
-      <form action="/find" className="space-y-3 sm:flex sm:items-center sm:gap-3 sm:space-y-0">
+      <form
+        action="/find"
+        className="grid gap-3 rounded-[1.35rem] border border-white/7 bg-[#0a0d12] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] lg:grid-cols-[minmax(0,1fr)_auto]"
+      >
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 left-5 size-5 -translate-y-1/2 text-[#9f8d7b]" />
           <Input
-            className="h-14 rounded-2xl border-border bg-background pl-10 text-base shadow-none"
+            className="h-[4.35rem] rounded-[1.1rem] border-white/8 bg-[#080a0e] pl-13 text-[1.05rem] text-[#fff5ea] placeholder:text-[#9f8d7b] shadow-none"
             name="q"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Enter an address, area, or postcode"
             value={query}
           />
         </div>
-        <Button className="h-14 w-full rounded-2xl px-6 sm:w-auto" size="lg" type="submit">
+        <Button
+          className="h-[4.35rem] w-full rounded-[1.1rem] bg-[#ff7a1a] px-7 text-[1rem] font-semibold text-[#1a1009] shadow-[0_10px_24px_rgba(255,122,26,0.24)] hover:bg-[#ff8f39] lg:w-auto"
+          size="lg"
+          type="submit"
+        >
           Search
         </Button>
       </form>
       <Button
-        className="h-11 rounded-2xl px-5"
+        className="h-12 rounded-[1.2rem] border-white/10 bg-[#151922] px-5 text-[#f5ecdf] hover:bg-[#1b202b]"
         disabled={isLocating}
         onClick={handleUseLocation}
         type="button"
@@ -80,7 +87,7 @@ export function AddressSearchForm() {
         Use my location
       </Button>
       {locationMessage ? (
-        <p className="text-sm leading-6 text-muted-foreground">{locationMessage}</p>
+        <p className="text-sm leading-6 text-[#a99986]">{locationMessage}</p>
       ) : null}
     </div>
   );
