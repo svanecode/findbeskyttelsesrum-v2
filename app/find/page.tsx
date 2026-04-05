@@ -11,7 +11,7 @@ type FindRouteProps = {
 };
 
 export const metadata = {
-  title: "Find shelters",
+  title: "Find beskyttelsesrum",
 };
 
 export default async function Page({ searchParams }: FindRouteProps) {

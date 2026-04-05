@@ -34,7 +34,7 @@ export function SearchResultCard({
     >
       {onSelect ? (
         <button
-          aria-label={`Show ${result.addressLine1} on map`}
+          aria-label={`Vis ${result.addressLine1} på kort`}
           className="absolute top-3 right-3 z-10 inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           onClick={() => onSelect(result.id)}
           type="button"
@@ -65,7 +65,7 @@ export function SearchResultCard({
             </p>
             <p className="shrink-0 text-sm text-muted-foreground">{result.city}</p>
             {result.capacity > 0 ? (
-              <p className="shrink-0 text-sm text-muted-foreground">· {result.capacity} people</p>
+              <p className="shrink-0 text-sm text-muted-foreground">· {result.capacity} pladser</p>
             ) : null}
             {distanceLabel ? (
               <p className="ml-auto shrink-0 text-sm font-medium text-muted-foreground">{distanceLabel}</p>
@@ -74,7 +74,7 @@ export function SearchResultCard({
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground sm:hidden">
             <span>{result.city}</span>
-            {result.capacity > 0 ? <span>· {result.capacity} people</span> : null}
+            {result.capacity > 0 ? <span>· {result.capacity} pladser</span> : null}
           </div>
         </div>
       </Link>

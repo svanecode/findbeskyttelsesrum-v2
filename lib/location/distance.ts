@@ -28,12 +28,12 @@ export function formatDistanceLabel(distanceKm: number | null) {
   }
 
   if (distanceKm < 1) {
-    return `${Math.round(distanceKm * 1000)} m away`;
+    return `${Math.round(distanceKm * 1000)} m væk`;
   }
 
   if (distanceKm < 10) {
-    return `${distanceKm.toFixed(1)} km away`;
+    return `${distanceKm.toFixed(1)} km væk`;
   }
 
-  return `${Math.round(distanceKm)} km away`;
+  return `${Math.round(distanceKm)} km væk`;
 }

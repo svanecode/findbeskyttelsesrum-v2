@@ -33,7 +33,7 @@ export function SearchResultsExperience({ resultSet }: SearchResultsExperiencePr
           onClick={() => setViewMode("list")}
           type="button"
         >
-          List
+          Liste
         </button>
         <span className="pb-2 text-sm text-muted-foreground">|</span>
         <button
@@ -43,7 +43,7 @@ export function SearchResultsExperience({ resultSet }: SearchResultsExperiencePr
           onClick={() => setViewMode("map")}
           type="button"
         >
-          Map
+          Kort
         </button>
       </div>
 

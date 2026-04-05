@@ -20,15 +20,15 @@ export function SearchNoResults({
   geocodingStatus = null,
 }: SearchNoResultsProps) {
   const reasons = [
-    isMunicipalityFilterInvalid ? "Unknown municipality filter." : null,
-    hasInvalidCoordinates ? "Location parameters could not be used." : null,
-    geocodingStatus === "no_match" ? "No address match was found." : null,
-    geocodingStatus === "ambiguous" ? "The address matched more than one place." : null,
-    geocodingStatus === "provider_error" ? "Address lookup is temporarily unavailable." : null,
-    query ? `No records matched “${query}”.` : null,
-    municipalityName ? `Municipality: ${municipalityName}.` : null,
+    isMunicipalityFilterInvalid ? "Ukendt kommunefilter." : null,
+    hasInvalidCoordinates ? "Placeringsparametrene kunne ikke bruges." : null,
+    geocodingStatus === "no_match" ? "Ingen adressematch blev fundet." : null,
+    geocodingStatus === "ambiguous" ? "Adressen matchede mere end ét sted." : null,
+    geocodingStatus === "provider_error" ? "Adresseopslag er midlertidigt utilgængeligt." : null,
+    query ? `Ingen resultater matchede “${query}”.` : null,
+    municipalityName ? `Kommune: ${municipalityName}.` : null,
     hasLocationSearch && nearbyRadiusKm
-      ? `No results within ${nearbyRadiusKm} km.`
+      ? `Ingen resultater inden for ${nearbyRadiusKm} km.`
       : null,
   ]
     .filter(Boolean)
@@ -37,7 +37,7 @@ export function SearchNoResults({
   return (
     <div className="space-y-5 bg-background py-10 sm:py-14">
       <h2 className="font-[family-name:var(--font-instrument-serif)] text-[1.8rem] leading-tight text-foreground">
-        No shelters matched.
+        Ingen beskyttelsesrum matchede.
       </h2>
       <div className="space-y-4 text-sm leading-6 text-muted-foreground">
         {reasons ? <p>{reasons}</p> : null}
@@ -46,13 +46,13 @@ export function SearchNoResults({
             className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
             href="/find?q=2300"
           >
-            Try postcode search
+            Prøv postnummersøgning
           </Link>
           <Link
             className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
             href="/find"
           >
-            Clear search
+            Ryd søgning
           </Link>
         </div>
       </div>

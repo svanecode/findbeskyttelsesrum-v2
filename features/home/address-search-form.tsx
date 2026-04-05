@@ -10,7 +10,6 @@ export function AddressSearchForm() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [isFetching, setIsFetching] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -27,11 +26,9 @@ export function AddressSearchForm() {
       setSuggestions([]);
       setShowSuggestions(false);
       setActiveIndex(-1);
-      setIsFetching(false);
       return;
     }
 
-    setIsFetching(true);
     debounceTimerRef.current = setTimeout(async () => {
       try {
         const response = await fetch(
@@ -52,8 +49,6 @@ export function AddressSearchForm() {
         setSuggestions([]);
         setShowSuggestions(false);
         setActiveIndex(-1);
-      } finally {
-        setIsFetching(false);
       }
     }, 280);
 
@@ -131,7 +126,7 @@ export function AddressSearchForm() {
 
   function handleUseLocation() {
     if (!navigator.geolocation) {
-      setLocationMessage("Geolocation is not available in this browser.");
+      setLocationMessage("Placering er ikke tilgængelig i denne browser.");
       return;
     }
 
@@ -150,16 +145,16 @@ export function AddressSearchForm() {
       (error) => {
         setIsLocating(false);
         if (error.code === error.PERMISSION_DENIED) {
-          setLocationMessage("Location access was denied. You can still search by address.");
+          setLocationMessage("Adgang til placering blev nægtet. Du kan stadig søge på adresse.");
           return;
         }
 
         if (error.code === error.POSITION_UNAVAILABLE) {
-          setLocationMessage("Your current location is unavailable right now.");
+          setLocationMessage("Din aktuelle placering er ikke tilgængelig lige nu.");
           return;
         }
 
-        setLocationMessage("We could not read your current location.");
+        setLocationMessage("Vi kunne ikke læse din aktuelle placering.");
       },
       {
         enableHighAccuracy: true,
@@ -183,7 +178,7 @@ export function AddressSearchForm() {
             onBlur={handleInputBlur}
             onFocus={handleInputFocus}
             onKeyDown={handleInputKeyDown}
-            placeholder="Enter an address, area, or postcode"
+            placeholder="Indtast adresse, område eller postnummer"
             value={query}
           />
           {showSuggestions && suggestions.length > 0 ? (
@@ -210,7 +205,7 @@ export function AddressSearchForm() {
           className="h-[52px] w-full bg-primary px-7 text-base font-medium text-primary-foreground transition-colors hover:opacity-95 sm:w-auto"
           type="submit"
         >
-          Search
+          Søg
         </button>
       </form>
       <button
@@ -220,7 +215,7 @@ export function AddressSearchForm() {
         type="button"
       >
         {isLocating ? <LoaderCircle className="size-4 animate-spin" /> : <LocateFixed className="size-4" />}
-        Use my location
+        Brug min placering
       </button>
       {locationMessage ? (
         <p className="text-sm leading-6 text-muted-foreground">{locationMessage}</p>

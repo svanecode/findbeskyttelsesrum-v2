@@ -4,16 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const cards = [
   {
-    title: "Public shelter records",
-    body: "All shelters come from the official BBR and DAR registers. Records are updated automatically every day.",
+    title: "Offentlige beskyttelsesrumsdata",
+    body: "Alle beskyttelsesrum stammer fra de officielle BBR- og DAR-registre. Data opdateres automatisk hver dag.",
   },
   {
-    title: "Source provenance",
-    body: "Every shelter shows its source, import date, and a direct link to the official register entry.",
+    title: "Kildehenvisning",
+    body: "Hvert beskyttelsesrum viser sin kilde, importdato og et direkte link til den officielle registerindgang.",
   },
   {
-    title: "Manual overrides",
-    body: "Editors can correct individual records without altering the underlying official data. Both values stay visible.",
+    title: "Manuelle korrektioner",
+    body: "Redaktører kan korrigere individuelle resultater uden at ændre de underliggende officielle data. Begge værdier forbliver synlige.",
   },
 ];
 
@@ -22,9 +22,9 @@ export function DataPage() {
     <PageShell className="py-12 sm:py-16">
       <div className="space-y-10">
         <SectionHeading
-          eyebrow="Transparency"
-          title="How the data is structured"
-          description="Findbeskyttelsesrum v2 is designed to make source provenance, freshness, and manual intervention visible rather than implied."
+          eyebrow="TRANSPARENS"
+          title="Sådan er data struktureret"
+          description="Findbeskyttelsesrum v2 er designet til at gøre kildehenvisning, opdateringsdato og manuelle korrektioner synlige frem for implicitte."
         />
         <div className="grid gap-4 md:grid-cols-3">
           {cards.map((card) => (

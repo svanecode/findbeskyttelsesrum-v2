@@ -3,8 +3,8 @@ import Link from "next/link";
 import { PageShell } from "@/components/shared/page-shell";
 
 const navigation = [
-  { href: "/find", label: "Find shelters" },
-  { href: "/om-data", label: "About the data" },
+  { href: "/find", label: "Find beskyttelsesrum" },
+  { href: "/om-data", label: "Om data" },
 ];
 
 export function SiteHeader() {
@@ -35,7 +35,7 @@ export function SiteHeader() {
           className="text-sm text-muted-foreground underline decoration-transparent decoration-1 underline-offset-4 transition-[color,text-decoration-color] hover:text-foreground hover:decoration-current md:hidden"
           href="/find"
         >
-          Search →
+          Søg →
         </Link>
       </PageShell>
     </header>

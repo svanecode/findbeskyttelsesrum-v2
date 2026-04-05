@@ -28,7 +28,7 @@ function SubmitButton() {
       disabled={pending}
       type="submit"
     >
-      {pending ? "Submitting report..." : "Submit report"}
+      {pending ? "Sender rapport…" : "Indsend rapport"}
     </Button>
   );
 }
@@ -58,7 +58,7 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
           onClick={() => setIsOpen(true)}
           type="button"
         >
-          Report an issue with this record ↓
+          Rapportér en fejl i dette resultat ↓
         </button>
       ) : null}
 
@@ -68,21 +68,21 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
 
           {state.status === "success" ? (
             <div className="border border-border bg-muted p-4 text-sm leading-6 text-muted-foreground">
-              <p className="font-medium text-foreground">Report received</p>
+              <p className="font-medium text-foreground">Rapport modtaget</p>
               <p className="mt-1">{state.message}</p>
             </div>
           ) : (
             <>
               <div className="space-y-2">
                 <p className="text-sm leading-6 text-muted-foreground">
-                  If something looks wrong in the public record for {shelterName}, you can send a
-                  short report for later review.
+                  Hvis noget ser forkert ud i det offentlige resultat for {shelterName}, kan du
+                  sende en kort rapport til senere gennemgang.
                 </p>
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground" htmlFor="reportType">
-                  Issue type
+                  Fejltype
                 </label>
                 <select
                   className="flex h-11 w-full rounded-[2px] border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:border-foreground"
@@ -91,7 +91,7 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
                   name="reportType"
                 >
                   <option disabled value="">
-                    Select an issue type
+                    Vælg fejltype
                   </option>
                   {reportTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -104,13 +104,13 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground" htmlFor="message">
-                  Message
+                  Besked
                 </label>
                 <Textarea
                   className="rounded-[2px] border-border bg-background text-foreground placeholder:text-muted-foreground"
                   id="message"
                   name="message"
-                  placeholder="Describe what looks wrong or outdated."
+                  placeholder="Beskriv hvad der ser forkert eller forældet ud."
                   required
                 />
                 <FieldError message={state.fieldErrors.message} />
@@ -118,17 +118,17 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground" htmlFor="contactEmail">
-                  Contact email (optional)
+                  Kontakt-e-mail (valgfri)
                 </label>
                 <Input
                   className="rounded-[2px] border-border bg-background text-foreground placeholder:text-muted-foreground"
                   id="contactEmail"
                   name="contactEmail"
-                  placeholder="name@example.com"
+                  placeholder="navn@eksempel.dk"
                   type="email"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Add an email only if you are open to being contacted about this report.
+                  Tilføj kun en e-mail, hvis du er åben for at blive kontaktet om denne rapport.
                 </p>
                 <FieldError message={state.fieldErrors.contactEmail} />
               </div>
@@ -143,7 +143,7 @@ export function ReportIssueForm({ shelterId, shelterName }: ReportIssueFormProps
                   onClick={() => setIsOpen(false)}
                   type="button"
                 >
-                  Cancel
+                  Annuller
                 </button>
               </div>
             </>

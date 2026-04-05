@@ -332,13 +332,13 @@ function formatStatus(status: ShelterStatus) {
 function formatSourceType(sourceType: SourceType) {
   switch (sourceType) {
     case "official":
-      return "Official source";
+      return "Officiel kilde";
     case "municipality":
-      return "Municipality source";
+      return "Kommunal kilde";
     case "manual":
-      return "Manual source";
+      return "Manuel kilde";
     case "other":
-      return "Other source";
+      return "Anden kilde";
     default:
       return sourceType;
   }
@@ -349,11 +349,36 @@ function formatDate(value: string | null) {
     return null;
   }
 
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
+  return new Intl.DateTimeFormat("da-DK", {
+    day: "numeric",
+    month: "long",
     year: "numeric",
   }).format(new Date(value));
+}
+
+export async function getLatestImportDate(): Promise<string | null> {
+  try {
+    const supabase = await createAppV2ReadClient();
+    const { data, error } = await supabase
+      .from("import_runs")
+      .select("finished_at")
+      .eq("status", "succeeded")
+      .order("finished_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data?.finished_at) {
+      return null;
+    }
+
+    return new Intl.DateTimeFormat("da-DK", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date(data.finished_at));
+  } catch {
+    return null;
+  }
 }
 
 function normalizeText(value: string | null | undefined) {

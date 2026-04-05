@@ -30,30 +30,30 @@ export async function submitShelterReport(
     return {
       status: "error",
       fieldErrors: {
-        form: "The shelter reference is missing. Reload the page and try again.",
+        form: "Referencen til beskyttelsesrummet mangler. Genindlæs siden og prøv igen.",
       },
     };
   }
 
   if (!isValidReportType(reportType)) {
-    fieldErrors.reportType = "Choose the issue that best matches the problem.";
+    fieldErrors.reportType = "Vælg den fejltype, der passer bedst til problemet.";
   }
 
   if (message.length < 20) {
-    fieldErrors.message = "Please add a short explanation with at least 20 characters.";
+    fieldErrors.message = "Tilføj en kort forklaring på mindst 20 tegn.";
   } else if (message.length > 1500) {
-    fieldErrors.message = "Please keep the message below 1500 characters.";
+    fieldErrors.message = "Hold beskeden under 1500 tegn.";
   }
 
   if (contactEmail && !isValidEmail(contactEmail)) {
-    fieldErrors.contactEmail = "Enter a valid email address or leave this field empty.";
+    fieldErrors.contactEmail = "Indtast en gyldig e-mailadresse eller lad feltet være tomt.";
   }
 
   if (Object.keys(fieldErrors).length > 0) {
     return {
       status: "error",
       fieldErrors,
-      message: "Please correct the form and try again.",
+      message: "Ret formularen og prøv igen.",
     };
   }
 
@@ -70,7 +70,7 @@ export async function submitShelterReport(
       return {
         status: "error",
         fieldErrors: {
-          form: "This shelter record could not be found anymore.",
+          form: "Dette beskyttelsesrum kunne ikke længere findes.",
         },
       };
     }
@@ -86,7 +86,7 @@ export async function submitShelterReport(
       return {
         status: "error",
         fieldErrors: {
-          form: "The report could not be submitted right now. Please try again later.",
+          form: "Rapporten kunne ikke indsendes lige nu. Prøv igen senere.",
         },
       };
     }
@@ -94,13 +94,13 @@ export async function submitShelterReport(
     return {
       ...initialReportIssueState,
       status: "success",
-      message: "Thank you. Your report has been received and can now be reviewed.",
+      message: "Tak. Din rapport er modtaget.",
     };
   } catch {
     return {
       status: "error",
       fieldErrors: {
-        form: "The reporting service is not configured yet.",
+        form: "Rapporteringstjenesten er ikke konfigureret endnu.",
       },
     };
   }

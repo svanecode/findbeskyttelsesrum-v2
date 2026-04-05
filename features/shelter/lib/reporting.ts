@@ -1,9 +1,9 @@
 export const reportTypeOptions = [
-  { value: "incorrect_address", label: "Incorrect address" },
-  { value: "unavailable", label: "Shelter removed or unavailable" },
-  { value: "incorrect_capacity", label: "Incorrect capacity" },
-  { value: "duplicate_record", label: "Duplicate record" },
-  { value: "other", label: "Other" },
+  { value: "incorrect_address", label: "Forkert adresse" },
+  { value: "unavailable", label: "Beskyttelsesrum fjernet eller utilgængeligt" },
+  { value: "incorrect_capacity", label: "Forkert kapacitet" },
+  { value: "duplicate_record", label: "Dubleret resultat" },
+  { value: "other", label: "Andet" },
 ] as const;
 
 export type ShelterReportType = (typeof reportTypeOptions)[number]["value"];

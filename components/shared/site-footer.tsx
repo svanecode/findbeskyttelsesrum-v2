@@ -1,13 +1,16 @@
 import Link from "next/link";
 
 import { PageShell } from "@/components/shared/page-shell";
+import { getLatestImportDate } from "@/lib/supabase/queries";
 
 const footerLinks = [
-  { href: "/find", label: "Find shelters" },
-  { href: "/om-data", label: "About the data" },
+  { href: "/find", label: "Find beskyttelsesrum" },
+  { href: "/om-data", label: "Om data" },
 ] as const;
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const lastUpdated = await getLatestImportDate();
+
   return (
     <footer className="border-t border-border bg-muted text-[0.8rem] text-muted-foreground">
       <PageShell className="grid gap-8 py-8 sm:py-10 md:grid-cols-3">
@@ -20,10 +23,8 @@ export function SiteFooter() {
             Findbeskyttelsesrum
           </Link>
           <div className="space-y-2 leading-6">
-            <p>Public shelter data for Denmark.</p>
-            <p className="italic">
-              Independent. Not affiliated with the Danish state.
-            </p>
+            <p>Offentlige beskyttelsesrumsdata for Danmark.</p>
+            <p className="italic">Uafhængig. Ikke tilknyttet den danske stat.</p>
           </div>
         </div>
 
@@ -46,10 +47,9 @@ export function SiteFooter() {
         </div>
 
         <div className="space-y-3 leading-6">
-          <p className="font-medium text-foreground">Data sources</p>
+          <p className="font-medium text-foreground">Datakilder</p>
           <p>BBR · DAR · Datafordeler</p>
-          {/* TODO: make dynamic from latest import_run instead of hardcoding */}
-          <p>Last updated: March 26, 2026</p>
+          <p>Sidst opdateret: {lastUpdated ?? "Ukendt"}</p>
         </div>
       </PageShell>
     </footer>

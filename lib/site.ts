@@ -1,7 +1,7 @@
 export const siteConfig = {
   name: "Findbeskyttelsesrum v2",
   description:
-    "Calm, trustworthy, mobile-first shelter discovery for Denmark with visible source clarity.",
+    "Rolig, troværdig og mobil-først søgning efter beskyttelsesrum i Danmark med tydelig kildeangivelse.",
 };
 
 export function getSiteUrl() {

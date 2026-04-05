@@ -7,7 +7,10 @@ type MunicipalityShelterCardProps = {
 
 export function MunicipalityShelterCard({ shelter }: MunicipalityShelterCardProps) {
   const address = `${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}`;
-  const rowLabel = shelter.name ? `${shelter.name} · ${address}` : address;
+  const displayName = shelter.name.startsWith("Shelter at ") || shelter.name.startsWith("Beskyttelsesrum ved ")
+    ? shelter.addressLine1
+    : shelter.name;
+  const rowLabel = displayName ? `${displayName} · ${address}` : address;
 
   return (
     <Link

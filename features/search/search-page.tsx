@@ -52,8 +52,8 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
           <div className="mx-auto max-w-4xl space-y-8">
             <SearchPageHeader
               label="Find"
-              title="Search shelters."
-              description="Address, area, postcode, or current location."
+              title="Find beskyttelsesrum."
+              description="Adresse, område, postnummer eller aktuel placering."
             />
             <div className="border border-border bg-card p-5 sm:p-7">
               <SearchForm defaultQuery={normalized.query} municipalitySlug={normalized.municipalitySlug} />
@@ -72,8 +72,8 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
           <div className="mx-auto max-w-4xl space-y-8">
             <SearchPageHeader
               label="Find"
-              title="Location search could not be started."
-              description="Start a new search."
+              title="Placeringssøgning kunne ikke startes."
+              description="Start en ny søgning."
             />
             <div className="border border-border bg-card p-5 sm:p-7">
               <SearchForm defaultQuery={normalized.query} municipalitySlug={normalized.municipalitySlug} />
@@ -119,7 +119,7 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
   const mappedCount = resultSet.results.filter(
     (result) => result.latitude !== null && result.longitude !== null,
   ).length;
-  const headerItems = [`Mapped: ${mappedCount}`];
+  const headerItems = [`Kortlagt: ${mappedCount}`];
 
   if (
     resultSet.municipalityName &&
@@ -138,7 +138,7 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-2">
                 <p className="font-mono text-3xl tracking-[-0.03em] text-foreground sm:text-4xl">
-                  {resultSet.results.length} shelter{resultSet.results.length === 1 ? "" : "s"}
+                  {resultSet.results.length} beskyttelsesrum
                 </p>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   {headerItems.map((item, index) => (
@@ -150,11 +150,11 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
                 </div>
               </div>
               {resultSet.isMunicipalityFilterInvalid ? (
-                <p className="text-sm leading-6 text-muted-foreground">Unknown municipality filter.</p>
+                <p className="text-sm leading-6 text-muted-foreground">Ukendt kommunefilter.</p>
               ) : null}
               {resultSet.searchMode !== "text" && !resultSet.hasNearbyResults ? (
                 <p className="text-sm leading-6 text-muted-foreground">
-                  No shelters within {resultSet.nearbyRadiusKm} km.
+                  Ingen resultater inden for {resultSet.nearbyRadiusKm} km.
                 </p>
               ) : null}
             </div>

@@ -86,13 +86,13 @@ export function SearchResultsMapLeaflet({
       <Card className="border border-dashed border-border bg-card text-foreground">
         <CardHeader className="gap-3">
           <Badge className="bg-primary text-primary-foreground" variant="secondary">
-            Map unavailable
+            Kort utilgængeligt
           </Badge>
-          <CardTitle className="text-foreground">No result coordinates available.</CardTitle>
+          <CardTitle className="text-foreground">Ingen koordinater er tilgængelige for resultaterne.</CardTitle>
         </CardHeader>
         <CardContent className="text-sm leading-6 text-muted-foreground">
-          The current result set can still be reviewed in the list, but none of these shelters have
-          public coordinates yet.
+          Resultaterne kan stadig gennemgås i listen, men ingen af disse beskyttelsesrum har
+          offentlige koordinater endnu.
         </CardContent>
       </Card>
     );
@@ -103,15 +103,15 @@ export function SearchResultsMapLeaflet({
       <CardHeader className="gap-3 border-b border-border">
         <div className="flex flex-wrap items-center gap-2">
           <Badge className="bg-primary text-primary-foreground" variant="secondary">
-            {mappedResults.length} markers
+            {mappedResults.length} markører
           </Badge>
           {results.length !== mappedResults.length ? (
             <Badge className="border-border text-muted-foreground" variant="outline">
-              {results.length - mappedResults.length} without coordinates
+              {results.length - mappedResults.length} uden koordinater
             </Badge>
           ) : null}
         </div>
-        <CardTitle className="text-foreground">Map</CardTitle>
+        <CardTitle className="text-foreground">Kort</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <div className="h-[360px] w-full sm:h-[440px] lg:h-[620px]">
@@ -142,7 +142,7 @@ export function SearchResultsMapLeaflet({
               >
                 <Popup>
                   <div className="space-y-2 text-sm">
-                    <p className="font-medium">Search location</p>
+                    <p className="font-medium">Søgeplacering</p>
                     <p>
                       {coordinates.latitude.toFixed(4)}, {coordinates.longitude.toFixed(4)}
                     </p>
@@ -172,7 +172,7 @@ export function SearchResultsMapLeaflet({
                     <div className="space-y-3 text-sm">
                       <div className="space-y-1">
                         <p className="font-medium text-foreground">
-                          {result.name || "Unnamed shelter record"}
+                          {result.name || "Beskyttelsesrum uden navn"}
                         </p>
                         <p className="text-muted-foreground">
                           {result.addressLine1}, {result.postalCode} {result.city}
@@ -185,7 +185,7 @@ export function SearchResultsMapLeaflet({
                         ) : null}
                       </div>
                       <Link className={buttonVariants({ size: "sm", variant: "outline" })} href={`/beskyttelsesrum/${result.slug}`}>
-                        Open shelter
+                        Åbn beskyttelsesrum
                       </Link>
                     </div>
                   </Popup>

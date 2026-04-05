@@ -18,13 +18,13 @@ export async function generateMetadata({ params }: ShelterRouteProps): Promise<M
 
   if (!shelter) {
     return {
-      title: "Shelter not found",
-      description: "The requested shelter record could not be found.",
+      title: "Beskyttelsesrum ikke fundet",
+      description: "Det ønskede beskyttelsesrum kunne ikke findes.",
     };
   }
 
   return {
-    title: `${shelter.name} | ${shelter.city}`,
+    title: `Beskyttelsesrum · ${shelter.addressLine1 || shelter.city}`,
     description: `${shelter.capacity} pladser. ${shelter.addressLine1}, ${shelter.postalCode} ${shelter.city}.`,
   };
 }

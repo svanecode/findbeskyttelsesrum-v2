@@ -32,10 +32,10 @@ export function HomePage({ featuredShelters }: HomePageProps) {
         <PageShell className="flex min-h-[calc(100vh-4.5rem)] items-center py-14 sm:py-18" variant="default">
           <div className="page-hero mx-auto flex w-full max-w-4xl flex-col items-center text-center">
             <div className="space-y-5">
-              <h1 className="display-serif">Find the nearest shelter.</h1>
+              <h1 className="display-serif">Find det nærmeste beskyttelsesrum.</h1>
               <p className="mx-auto max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Search by address or use your current location. Source and date visible on every
-                record.
+                Søg på adresse eller brug din aktuelle placering. Kilde og dato vises på hvert
+                resultat.
               </p>
             </div>
 
@@ -44,11 +44,11 @@ export function HomePage({ featuredShelters }: HomePageProps) {
             </div>
 
             <p className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 font-mono text-[0.72rem] tracking-[0.14em] text-muted-foreground uppercase sm:text-[0.78rem]">
-              <span>BBR + DAR official data</span>
+              <span>BBR + DAR officielle data</span>
               <span aria-hidden="true">›</span>
-              <span>Updated daily</span>
+              <span>Opdateres dagligt</span>
               <span aria-hidden="true">›</span>
-              <span>~3.4M registered spaces</span>
+              <span>~3,4 mio. registrerede pladser</span>
             </p>
           </div>
         </PageShell>
@@ -59,7 +59,7 @@ export function HomePage({ featuredShelters }: HomePageProps) {
           <PageShell variant="default">
             <div className="space-y-6 border border-border bg-card px-6 py-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:px-8 sm:py-8">
               <p className="font-mono text-[0.72rem] tracking-[0.14em] text-muted-foreground uppercase">
-                Recently verified shelter
+                Nyligt verificeret beskyttelsesrum
               </p>
 
               <div className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(16rem,0.8fr)] lg:items-start">
@@ -77,7 +77,7 @@ export function HomePage({ featuredShelters }: HomePageProps) {
                     <p className="font-mono text-3xl font-bold tracking-[-0.03em] text-foreground sm:text-4xl">
                       {primaryShelter.capacity}
                     </p>
-                    <p className="text-sm text-muted-foreground">spaces</p>
+                    <p className="text-sm text-muted-foreground">pladser</p>
                   </div>
                 </div>
 
@@ -86,14 +86,14 @@ export function HomePage({ featuredShelters }: HomePageProps) {
                     {primaryShelter.statusLabel}
                   </Badge>
                   <div className="space-y-1 text-sm leading-6 text-muted-foreground">
-                    <p>{primaryShelter.primarySourceName ?? "Source pending"}</p>
-                    <p>{primaryShelter.lastVerifiedLabel ?? "Verification date not listed"}</p>
+                    <p>{primaryShelter.primarySourceName ?? "Kilde afventer"}</p>
+                    <p>{primaryShelter.lastVerifiedLabel ?? "Verificeringsdato ikke angivet"}</p>
                   </div>
                   <Link
                     className="inline-block text-sm text-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-primary"
                     href={`/beskyttelsesrum/${primaryShelter.slug}`}
                   >
-                    Open shelter record →
+                    Åbn beskyttelsesrum →
                   </Link>
                 </div>
               </div>
@@ -103,13 +103,13 @@ export function HomePage({ featuredShelters }: HomePageProps) {
                   className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
                   href="/find?q=Kobenhavn"
                 >
-                  Browse Copenhagen
+                  Udforsk København
                 </Link>
                 <Link
                   className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
                   href="/om-data"
                 >
-                  About the data
+                  Om data
                 </Link>
               </div>
             </div>

@@ -11,14 +11,14 @@ type MunicipalityPageProps = {
 };
 
 export function MunicipalityPage({ municipality }: MunicipalityPageProps) {
-  const summary = `${municipality.shelterCount} public shelter record${municipality.shelterCount === 1 ? "" : "s"}`;
+  const summary = `${municipality.shelterCount} offentlige beskyttelsesrumsregistreringer`;
 
   return (
     <PageShell className="py-10 sm:py-14" variant="default">
       <div className="space-y-8">
         <section className="space-y-5">
           <p className="font-mono text-[0.72rem] tracking-[0.14em] text-muted-foreground uppercase">
-            Municipality
+            KOMMUNE
           </p>
           <div className="space-y-3">
             <h1 className="font-[family-name:var(--font-instrument-serif)] text-[2.4rem] leading-tight tracking-[-0.03em] text-foreground sm:text-[3.2rem]">
@@ -37,13 +37,13 @@ export function MunicipalityPage({ municipality }: MunicipalityPageProps) {
         <div className="sticky top-[57px] z-10 border-y border-border bg-background/95 py-3 backdrop-blur-[2px]">
           <div className="flex items-center justify-between gap-4 text-sm">
             <p className="font-mono text-muted-foreground">
-              {municipality.shelterCount} shelter{municipality.shelterCount === 1 ? "" : "s"}
+              {municipality.shelterCount} beskyttelsesrum
             </p>
             <Link
               className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
               href="/find"
             >
-              Back to search
+              Tilbage til søgning
             </Link>
           </div>
         </div>
@@ -67,13 +67,13 @@ export function MunicipalityPage({ municipality }: MunicipalityPageProps) {
             className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
             href="/find"
           >
-            Back to search
+            Tilbage til søgning
           </Link>
           <Link
             className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
             href="/om-data"
           >
-            About the data
+            Om data
           </Link>
         </div>
       </div>

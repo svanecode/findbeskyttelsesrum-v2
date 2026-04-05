@@ -28,7 +28,7 @@ export function SearchForm({
             : "h-12 rounded-[2px] border-border bg-card pl-11 text-base text-foreground placeholder:text-muted-foreground shadow-[0_1px_3px_rgba(0,0,0,0.06)]"}
           defaultValue={defaultQuery ?? ""}
           name="q"
-          placeholder="Search by address, area, or postcode"
+          placeholder="Søg på adresse, område eller postnummer"
         />
       </div>
       {municipalitySlug ? <input name="municipality" type="hidden" value={municipalitySlug} /> : null}
@@ -45,7 +45,7 @@ export function SearchForm({
         size="lg"
         type="submit"
       >
-        Search
+        Søg
       </Button>
     </form>
   );

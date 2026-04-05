@@ -113,7 +113,7 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
                         rel="noreferrer"
                         target="_blank"
                       >
-                        Open in maps
+                        Åbn i kort
                       </a>
                     ) : null}
                     {nearbySearchUrl ? (
@@ -121,7 +121,7 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
                         className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
                         href={nearbySearchUrl}
                       >
-                        Shelters nearby
+                        Nærliggende beskyttelsesrum
                       </Link>
                     ) : null}
                   </div>
@@ -133,7 +133,7 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
                   className="inline-block text-sm text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
                   href="/find"
                 >
-                  Back to search
+                  Tilbage til søgning
                 </Link>
                 <ReportIssueForm shelterId={shelter.id} shelterName={shelter.name} />
               </div>

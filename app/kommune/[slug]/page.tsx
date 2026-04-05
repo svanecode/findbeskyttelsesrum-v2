@@ -18,14 +18,14 @@ export async function generateMetadata({ params }: MunicipalityRouteProps): Prom
 
   if (!municipality) {
     return {
-      title: "Municipality not found",
-      description: "The requested municipality page could not be found.",
+      title: "Kommune ikke fundet",
+      description: "Den ønskede kommuneside kunne ikke findes.",
     };
   }
 
   return {
-    title: `${municipality.name} shelters`,
-    description: `Browse ${municipality.shelterCount} public shelter record${municipality.shelterCount === 1 ? "" : "s"} in ${municipality.name} municipality with status and source context.`,
+    title: `${municipality.name} beskyttelsesrum`,
+    description: `Se ${municipality.shelterCount} offentlige beskyttelsesrumsregistreringer i ${municipality.name} Kommune med status og kildeoplysninger.`,
   };
 }
 
