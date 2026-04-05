@@ -19,7 +19,7 @@ export function MunicipalityShelterCard({ shelter }: MunicipalityShelterCardProp
           <p className="truncate font-semibold text-foreground">{rowLabel}</p>
         </div>
         <div className="text-left sm:text-right">
-          <p className="font-mono text-sm text-foreground">{shelter.capacity} spaces</p>
+          <p className="font-mono text-sm text-foreground">{shelter.capacity} pladser</p>
         </div>
       </div>
     </Link>

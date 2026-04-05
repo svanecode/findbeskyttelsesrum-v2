@@ -9,8 +9,8 @@ const SearchResultsMapLeaflet = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="rounded-2xl border border-white/10 bg-[#12151b] p-6 text-sm leading-6 text-[#b8a793]">
-        Loading map...
+      <div className="border border-border bg-muted p-6 text-sm leading-6 text-muted-foreground">
+        Indlæser kort…
       </div>
     ),
   },

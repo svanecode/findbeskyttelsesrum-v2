@@ -40,7 +40,7 @@ export function SiteFooter() {
               </Link>
             ))}
             <Link className="transition-colors hover:text-foreground" href="/kommune">
-              Municipality index
+              Kommuneoversigt
             </Link>
           </div>
         </div>
@@ -48,6 +48,7 @@ export function SiteFooter() {
         <div className="space-y-3 leading-6">
           <p className="font-medium text-foreground">Data sources</p>
           <p>BBR · DAR · Datafordeler</p>
+          {/* TODO: make dynamic from latest import_run instead of hardcoding */}
           <p>Last updated: March 26, 2026</p>
         </div>
       </PageShell>

@@ -1,3 +1,4 @@
+// @deprecated These primitives are no longer imported anywhere. Keep until confirmed safe to remove.
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";

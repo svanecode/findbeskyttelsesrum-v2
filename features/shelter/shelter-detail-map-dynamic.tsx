@@ -18,7 +18,7 @@ const ShelterDetailMap = dynamic(
           justifyContent: "center",
         }}
       >
-        <span className="text-sm text-muted-foreground">Indlaeser kort...</span>
+        <span className="text-sm text-muted-foreground">Indlæser kort…</span>
       </div>
     ),
   },
