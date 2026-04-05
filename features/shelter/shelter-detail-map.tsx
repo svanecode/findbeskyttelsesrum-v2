@@ -5,6 +5,7 @@ import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
 import type { LatLngExpression, LatLngTuple } from "leaflet";
 
 type ShelterDetailMapProps = {
+  className?: string;
   latitude: number;
   longitude: number;
 };
@@ -19,12 +20,12 @@ function MapViewport({ center }: { center: LatLngTuple }) {
   return null;
 }
 
-export function ShelterDetailMap({ latitude, longitude }: ShelterDetailMapProps) {
+export function ShelterDetailMap({ className, latitude, longitude }: ShelterDetailMapProps) {
   const center: LatLngTuple = [latitude, longitude];
 
   return (
     <div className="overflow-hidden border border-border" style={{ borderRadius: "2px" }}>
-      <div className="h-[280px] w-full">
+      <div className={className ?? "h-[280px] w-full"}>
         <MapContainer
           center={center as LatLngExpression}
           className="search-results-map h-full w-full"

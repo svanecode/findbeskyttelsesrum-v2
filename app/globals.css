@@ -146,12 +146,15 @@
     font-family: var(--font-geist), sans-serif;
     font-weight: 600;
   }
+  h1 {
+    font-weight: 700;
+  }
   .page-hero h1 {
     font-family: var(--font-instrument-serif), serif;
     font-size: clamp(2.4rem, 5vw, 4rem);
     line-height: 1.1;
     letter-spacing: -0.02em;
-    font-weight: 400;
+    font-weight: 700;
   }
   a {
     @apply transition-colors;
@@ -160,7 +163,7 @@
 
 .display-serif {
   font-family: var(--font-instrument-serif), serif;
-  font-style: italic;
+  font-style: normal;
 }
 
 .search-results-map .leaflet-control-attribution,

@@ -159,7 +159,7 @@ export async function SearchPage({ searchParams }: SearchPageProps) {
               ) : null}
             </div>
 
-            <div className="border border-border bg-card p-5 sm:p-7">
+            <div className="border border-border bg-card p-4 sm:p-7">
               <SearchForm
                 compact
                 defaultQuery={normalized.query}

@@ -32,7 +32,10 @@ export function HomePage({ featuredShelters }: HomePageProps) {
         <PageShell className="flex min-h-[calc(100vh-4.5rem)] items-center py-14 sm:py-18" variant="default">
           <div className="page-hero mx-auto flex w-full max-w-4xl flex-col items-center text-center">
             <div className="space-y-5">
-              <h1 className="display-serif">Find det nærmeste beskyttelsesrum.</h1>
+              <p className="mb-2 font-mono text-[10px] tracking-widest text-primary uppercase">
+                Officielle data · Opdateres dagligt
+              </p>
+              <h1 className="display-serif font-bold not-italic">Find det nærmeste beskyttelsesrum.</h1>
               <p className="mx-auto max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
                 Søg på adresse eller brug din aktuelle placering. Kilde og dato vises på hvert
                 resultat.

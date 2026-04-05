@@ -208,14 +208,21 @@ export function AddressSearchForm() {
           Søg
         </button>
       </form>
+
+      <div className="flex items-center gap-3 py-1 text-xs tracking-[0.14em] text-muted-foreground uppercase">
+        <div className="h-px flex-1 bg-border" />
+        <span>eller</span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
       <button
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground hover:underline hover:decoration-1 hover:underline-offset-4"
+        className="inline-flex h-[52px] w-full items-center justify-center gap-2 border border-input bg-background px-4 text-base font-medium text-foreground transition-colors hover:bg-accent"
         disabled={isLocating}
         onClick={handleUseLocation}
         type="button"
       >
         {isLocating ? <LoaderCircle className="size-4 animate-spin" /> : <LocateFixed className="size-4" />}
-        Brug min placering
+        <span>📍 Brug min placering</span>
       </button>
       {locationMessage ? (
         <p className="text-sm leading-6 text-muted-foreground">{locationMessage}</p>

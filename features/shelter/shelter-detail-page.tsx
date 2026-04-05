@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 
 import { PageShell } from "@/components/shared/page-shell";
 import { getBbrUsageLabel } from "@/lib/bbr-usage-codes";
@@ -29,6 +30,10 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
     shelter.latitude !== null && shelter.longitude !== null
       ? `https://maps.google.com/?q=${shelter.latitude},${shelter.longitude}`
       : null;
+  const navigationUrl =
+    shelter.latitude !== null && shelter.longitude !== null
+      ? `https://www.google.com/maps/dir/?api=1&destination=${shelter.latitude},${shelter.longitude}`
+      : null;
   const nearbySearchUrl = buildNearbySearchUrl(shelter);
   const buildingType = getBbrUsageLabel(shelter.bbrUsageCode);
   const shortReference = shelter.primarySourceReference
@@ -37,7 +42,7 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
 
   return (
     <div className="bg-background text-foreground">
-      <PageShell className="py-10 sm:py-14" variant="narrow">
+      <PageShell className="pb-28 py-10 sm:py-14" variant="narrow">
         <div className="mx-auto max-w-2xl space-y-10 lg:max-w-none">
           <section className="space-y-6">
             <div className="space-y-4">
@@ -68,7 +73,33 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
             </div>
           </section>
 
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,0.6fr)_minmax(0,0.4fr)] lg:items-start">
+          <div className="space-y-6 lg:hidden">
+            {shelter.latitude !== null && shelter.longitude !== null ? (
+              <section className="space-y-3">
+                <ShelterDetailMap className="h-[300px] w-full" latitude={shelter.latitude} longitude={shelter.longitude} />
+                <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm">
+                  {mapsUrl ? (
+                    <a
+                      className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
+                      href={mapsUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Åbn i kort
+                    </a>
+                  ) : null}
+                  {nearbySearchUrl ? (
+                    <Link
+                      className="text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
+                      href={nearbySearchUrl}
+                    >
+                      Nærliggende beskyttelsesrum
+                    </Link>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
             <main className="space-y-6 border border-border bg-card p-6 sm:p-8">
               <dl className="space-y-6">
                 <div className="space-y-2">
@@ -100,7 +131,18 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
                 </div>
               </dl>
             </main>
+            <div className="space-y-4">
+              <Link
+                className="inline-block text-sm text-muted-foreground underline decoration-border decoration-1 underline-offset-4 transition-colors hover:text-foreground"
+                href="/find"
+              >
+                Tilbage til søgning
+              </Link>
+              <ReportIssueForm shelterId={shelter.id} shelterName={shelter.name} />
+            </div>
+          </div>
 
+          <div className="hidden gap-8 lg:grid lg:grid-cols-[minmax(0,0.6fr)_minmax(0,0.4fr)] lg:items-start">
             <aside className="space-y-6">
               {shelter.latitude !== null && shelter.longitude !== null ? (
                 <section className="space-y-3">
@@ -127,6 +169,52 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
                   </div>
                 </section>
               ) : null}
+            </aside>
+
+            <main className="space-y-6">
+              <div className="space-y-6 border border-border bg-card p-6 sm:p-8">
+                <dl className="space-y-6">
+                  <div className="space-y-2">
+                    <dt className="text-[0.7rem] tracking-[0.08em] text-muted-foreground uppercase">
+                      Kapacitet
+                    </dt>
+                    <dd className="font-mono text-[1.4rem] text-foreground">{shelter.capacity} pladser</dd>
+                  </div>
+
+                  {buildingType ? (
+                    <div className="space-y-2">
+                      <dt className="text-[0.7rem] tracking-[0.08em] text-muted-foreground uppercase">
+                        Bygningstype
+                      </dt>
+                      <dd className="text-base text-foreground">{buildingType}</dd>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <dt className="text-[0.7rem] tracking-[0.08em] text-muted-foreground uppercase">
+                      Adresse
+                    </dt>
+                    <dd className="space-y-1">
+                      <p className="text-base text-foreground">{shelter.addressLine1}</p>
+                      <p className="text-base text-foreground">
+                        {shelter.postalCode} {shelter.city}, {shelter.municipality.name}
+                      </p>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              {navigationUrl ? (
+                <a
+                  className="inline-flex w-full items-center justify-between gap-3 bg-primary px-4 py-3 text-base font-medium text-primary-foreground transition-colors hover:opacity-95"
+                  href={navigationUrl}
+                  rel="noopener"
+                  target="_blank"
+                >
+                  <span>Navigér hertil</span>
+                  <ChevronRight className="size-5" />
+                </a>
+              ) : null}
 
               <div className="space-y-4">
                 <Link
@@ -137,7 +225,7 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
                 </Link>
                 <ReportIssueForm shelterId={shelter.id} shelterName={shelter.name} />
               </div>
-            </aside>
+            </main>
           </div>
 
           <p className="text-center font-mono text-[0.72rem] text-muted-foreground">
@@ -146,6 +234,20 @@ export function ShelterDetailPage({ shelter }: ShelterDetailPageProps) {
           </p>
         </div>
       </PageShell>
+
+      {navigationUrl ? (
+        <div className="fixed right-0 bottom-0 left-0 border-t border-border bg-background p-4 lg:hidden">
+          <a
+            className="inline-flex w-full items-center justify-center gap-2 bg-primary px-4 py-3 text-base font-medium text-primary-foreground transition-colors hover:opacity-95"
+            href={navigationUrl}
+            rel="noopener"
+            target="_blank"
+          >
+            Navigér hertil
+            <ChevronRight className="h-4 w-4" />
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }

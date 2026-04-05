@@ -19,6 +19,12 @@ export function SearchResultCard({
   onSelect,
 }: SearchResultCardProps) {
   const distanceLabel = formatDistanceLabel(result.distanceKm);
+  const distanceClassName =
+    result.distanceKm !== null && result.distanceKm < 0.5
+      ? "text-primary"
+      : result.distanceKm !== null && result.distanceKm < 2
+        ? "text-foreground"
+        : "text-muted-foreground";
   const displayTitle =
     result.name.startsWith("Shelter at ") || result.name.startsWith("Beskyttelsesrum ved ")
       ? result.addressLine1
@@ -55,7 +61,9 @@ export function SearchResultCard({
               </p>
             </div>
             {distanceLabel ? (
-              <p className="shrink-0 text-sm font-medium text-muted-foreground">{distanceLabel}</p>
+              <p className={`shrink-0 font-mono text-base font-semibold ${distanceClassName}`}>
+                {distanceLabel}
+              </p>
             ) : null}
           </div>
 
@@ -63,16 +71,14 @@ export function SearchResultCard({
             <p className="min-w-0 truncate text-[1.02rem] font-semibold tracking-[-0.03em] text-foreground">
               {displayTitle}
             </p>
-            <p className="shrink-0 text-sm text-muted-foreground">{result.city}</p>
-            {result.capacity > 0 ? (
-              <p className="shrink-0 text-sm text-muted-foreground">· {result.capacity} pladser</p>
-            ) : null}
             {distanceLabel ? (
-              <p className="ml-auto shrink-0 text-sm font-medium text-muted-foreground">{distanceLabel}</p>
+              <p className={`ml-auto shrink-0 font-mono text-base font-semibold ${distanceClassName}`}>
+                {distanceLabel}
+              </p>
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground sm:hidden">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             <span>{result.city}</span>
             {result.capacity > 0 ? <span>· {result.capacity} pladser</span> : null}
           </div>

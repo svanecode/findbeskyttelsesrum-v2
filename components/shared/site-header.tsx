@@ -9,12 +9,11 @@ const navigation = [
 
 export function SiteHeader() {
   return (
-    <header className="border-b border-border bg-background text-foreground">
+    <header className="border-b border-foreground/20 bg-foreground text-background">
       <PageShell className="flex items-center justify-between gap-4 py-4">
         <Link
-          className="text-[0.9rem] font-medium tracking-[0.04em] text-foreground"
+          className="font-mono text-xs tracking-widest text-background uppercase"
           href="/"
-          style={{ fontVariant: "all-small-caps" }}
         >
           Findbeskyttelsesrum
         </Link>
@@ -23,7 +22,7 @@ export function SiteHeader() {
           {navigation.map((item) => (
             <Link
               key={item.href}
-              className="text-sm text-muted-foreground underline decoration-transparent decoration-1 underline-offset-4 transition-[color,text-decoration-color] hover:text-foreground hover:decoration-current"
+              className="text-sm text-background/70 underline decoration-transparent decoration-1 underline-offset-4 transition-[color,text-decoration-color] hover:text-background hover:decoration-current"
               href={item.href}
             >
               {item.label}
@@ -32,7 +31,7 @@ export function SiteHeader() {
         </nav>
 
         <Link
-          className="text-sm text-muted-foreground underline decoration-transparent decoration-1 underline-offset-4 transition-[color,text-decoration-color] hover:text-foreground hover:decoration-current md:hidden"
+          className="text-sm text-background/70 underline decoration-transparent decoration-1 underline-offset-4 transition-[color,text-decoration-color] hover:text-background hover:decoration-current md:hidden"
           href="/find"
         >
           Søg →

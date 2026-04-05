@@ -16,6 +16,7 @@ type SearchResultsMapLeafletProps = {
     latitude: number;
     longitude: number;
   } | null;
+  className?: string;
   results: SearchShelterResult[];
   selectedResultId: string | null;
   onSelectResult: (resultId: string) => void;
@@ -50,6 +51,7 @@ function MapViewport({
 }
 
 export function SearchResultsMapLeaflet({
+  className,
   coordinates,
   results,
   selectedResultId,
@@ -114,7 +116,7 @@ export function SearchResultsMapLeaflet({
         <CardTitle className="text-foreground">Kort</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="h-[360px] w-full sm:h-[440px] lg:h-[620px]">
+        <div className={className ?? "h-[360px] w-full sm:h-[440px] lg:h-[620px]"}>
           <MapContainer
             center={mapCenter as LatLngExpression}
             className="search-results-map h-full w-full"

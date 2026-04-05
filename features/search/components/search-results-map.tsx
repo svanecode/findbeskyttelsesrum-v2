@@ -21,6 +21,7 @@ type SearchResultsMapProps = {
     latitude: number;
     longitude: number;
   } | null;
+  className?: string;
   results: SearchShelterResult[];
   selectedResultId: string | null;
   onSelectResult: (resultId: string) => void;
