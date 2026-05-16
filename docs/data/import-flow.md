@@ -1,7 +1,7 @@
 # Import Flow
 
 ## Purpose
-Track how official baseline data enters the system, how admin corrections stay separate, and how the public app reads effective values.
+Track how official baseline data enters the system, how admin corrections stay separate, and how the public app (separate repository) reads effective values.
 
 ## Schema Boundary
 - Legacy `public` tables remain untouched and are not the target for v2 migration work.

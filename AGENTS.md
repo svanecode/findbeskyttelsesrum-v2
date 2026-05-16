@@ -1,47 +1,35 @@
-# Findbeskyttelsesrum v2
+# Findbeskyttelsesrum importer
 
 ## Mission
-- Build a trustworthy, calm, mobile-first public utility for finding nearby shelters in Denmark.
-- Prioritize clarity, trust, and speed over flashy design.
-- Choose the smallest strong implementation that solves the current need and avoid overengineering.
+- Keep official Danish shelter data fresh, auditable, and safe to write into `app_v2`.
+- Prefer explicit, non-interactive CLI and CI execution over hidden side paths.
+- Choose the smallest strong implementation that solves the current import need.
 
-## Product Rules
-- Optimize the main journey first: find address or current location, browse results, open a shelter detail page with clear source and trust information.
-- Treat municipality pages as first-class product and SEO surfaces.
-- Make data quality and source clarity visible product features, not hidden internals.
-- Use English for code, docs, comments, file names, and internal content.
+## Scope
+- This repository is importer-only. The public Next.js site lives elsewhere.
+- Do not add UI, routes, or app-shell code here unless the task explicitly requires importer tooling.
 
 ## Architecture Rules
-- Use Next.js App Router with Server Components by default.
-- Only use Client Components when browser APIs, event handlers, or local interactivity require them.
-- Keep route files thin. Route files should compose feature modules and shared components, not hold business logic.
-- Put reusable domain logic in `features/*` and shared infrastructure in `lib/*`.
-- Keep public-facing shelter records separate from raw import concerns.
-- Model manual overrides separately from imported data so editorial decisions remain auditable.
+- Keep official import logic in `lib/importer`.
+- Keep source clients under `lib/importer/clients`.
+- Keep local runs in `scripts/importer/run.ts`.
+- Keep Supabase admin access in `lib/supabase` and target `app_v2` explicitly.
+- Model manual overrides and public reads in the app repo; this repo writes importer-owned shelter baseline fields only.
 - Prefer direct, explicit modules over large abstraction layers.
 
 ## Database Rules
 - Supabase Postgres is the source of truth.
 - All schema changes must go through SQL migrations in `supabase/migrations`.
-- Keep import run metadata, source records, public shelter records, reports, and manual overrides as distinct concerns.
-- Add indexes intentionally for current query paths. Do not add speculative database complexity.
-- Enable Row Level Security on application tables and add explicit policies.
-
-## UI Rules
-- Keep the UI sober, calm, and fast.
-- Design mobile-first and scale up cleanly for larger screens.
-- Prefer a small set of reusable primitives and feature components.
-- Make trust signals explicit: source labels, update dates, and data completeness disclaimers should be easy to find.
+- Keep import runs, source records, and public shelter records as distinct concerns in `app_v2`.
+- Add indexes intentionally for importer query paths.
 
 ## Security Rules
 - Keep secrets server-side. Never expose service-role keys in client code.
-- Validate all server inputs before writing to the database.
-- Default to least privilege in Supabase policies.
-- Avoid adding auth flows or admin capabilities unless required by the current task.
+- Validate env configuration before long-running imports.
+- Default to least privilege in Supabase policies for tables this job touches.
 
 ## Delivery Rules
 - Keep files small, explicit, and reviewable.
-- Document new conventions briefly where they are introduced.
-- Update docs whenever architecture, data model, or key delivery conventions change.
-- Run relevant lint, typecheck, and build commands before handing work over when possible.
-- Fix obvious issues introduced by the change before finishing.
+- Update data/import docs when behavior, env vars, or CI change.
+- Run `npm run typecheck` and `npm run lint` before handing work over when possible.
+- Use English for code, docs, comments, file names, and internal content.

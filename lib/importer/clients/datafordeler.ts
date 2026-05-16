@@ -141,7 +141,6 @@ export class DatafordelerGraphqlClient {
             variables: input.variables,
           }),
           signal: controller.signal,
-          cache: "no-store",
         });
 
         if (!response.ok) {
